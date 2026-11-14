@@ -13,6 +13,14 @@ v1.8.0 把 403 处核心语义色升级成 `?attr/dshXxx`，两套主题各给�
   T3 values-night 也两套齐全（漏了夜间直接崩或落回默认灰）
   T4 通知/浮层用的 drawable 必须还是静态 @color（它们在没有 Activity 主题的
      Service 上下文里取图，?attr 会解析到 application theme 拿到错的色）
+
+v1.8.1 追加形态层（用户报「MD3 不就改了个颜色吗」）：
+
+  T5 形态令牌 dsh*Radius / dsh*Stroke 两套齐全且取值不同（只分叉颜色不算换风格）
+  T6 卡片/分组/图标底圈的圆角与描边必须走 ?attr，不能再写死 18dp / 1dp
+  T7 弹窗不能再在 show 之后 setBackgroundDrawableResource（这就是「先闪一下
+     再归位」的根因：窗口已 attach，换掉带 inset 的 MaterialShapeDrawable
+     会让面板首帧后突然撑大）
 """
 import os
 import re
@@ -80,6 +88,90 @@ check("夜間 Theme.Dsh 令牌齐全", not (declared - set(night_classic)),
       ",".join(sorted(declared - set(night_classic))))
 check("夜間 Theme.Dsh.MD3 令牌齐全", not (declared - set(night_md3)),
       ",".join(sorted(declared - set(night_md3))))
+
+# ---- T5 形态令牌两套齐全且真分叉 ----
+SHAPE_TOKENS = [
+    "dshCardRadius", "dshCardStroke", "dshIconChipRadius",
+    "dshIconChipStroke", "dshButtonRadius", "dshControlRadius", "dshGridCellRadius",
+]
+for k in SHAPE_TOKENS:
+    check(f"{k} 已在 attrs_style.xml 声明", k in declared, "缺声明")
+    a = light_classic.get(k)
+    b = light_md3.get(k)
+    check(f"{k} 经典/材料3 都有值", a is not None and b is not None, f"{a} / {b}")
+    check(f"{k} 两套取值不同（形态真分叉）", a != b, f"{a} vs {b}")
+
+# ---- T6 圆角/描边必须走令牌，不许写死 ----
+SHAPE_DRAWABLES = {
+    "bg_card.xml": ["?attr/dshCardRadius", "?attr/dshCardStroke"],
+    "bg_md3_card.xml": ["?attr/dshCardRadius", "?attr/dshCardStroke"],
+    "bg_md3_group.xml": ["?attr/dshCardRadius", "?attr/dshCardStroke"],
+    "bg_md3_seg_top.xml": ["?attr/dshCardRadius"],
+    "bg_md3_seg_single.xml": ["?attr/dshCardRadius"],
+    "bg_md3_seg_bottom.xml": ["?attr/dshCardRadius"],
+    "bg_md3_grid_cell.xml": ["?attr/dshGridCellRadius"],
+    "bg_md3_icon_chip.xml": ["?attr/dshIconChipRadius"],
+    "bg_md3_input.xml": ["?attr/dshControlRadius"],
+}
+for name, needles in SHAPE_DRAWABLES.items():
+    fp = os.path.join(RES, "drawable", name)
+    if not os.path.exists(fp):
+        check(f"{name} 存在", False, "文件缺失")
+        continue
+    txt = read(fp)
+    for needle in needles:
+        check(f"{name} 用 {needle}", needle in txt)
+
+# 布局里 22 处 MaterialCardView 的圆角与描边
+layout_dir = os.path.join(RES, "layout")
+hard_corner = []
+hard_stroke = []
+for fn in sorted(os.listdir(layout_dir)):
+    if not fn.endswith(".xml"):
+        continue
+    txt = read(os.path.join(layout_dir, fn))
+    if re.search(r'app:cardCornerRadius="\d+dp"', txt):
+        hard_corner.append(fn)
+    if re.search(r'app:strokeWidth="\d+dp"', txt):
+        hard_stroke.append(fn)
+check("布局卡片圆角全部走 ?attr/dshCardRadius", not hard_corner, ",".join(hard_corner))
+check("布局卡片描边全部走 ?attr/dshCardStroke", not hard_stroke, ",".join(hard_stroke))
+
+# ---- T7 弹窗不许在 show 之后换背景 ----
+themed_kt = read(os.path.join(ROOT, "app/src/main/java/app/dsh/mobile/ThemedActivity.kt"))
+appear_kt = read(os.path.join(ROOT, "app/src/main/java/app/dsh/mobile/AppearanceActivity.kt"))
+dialog_theme = os.path.join(RES, "values", "md3_dialog_theme.xml")
+# 只看**真实调用**：先剥掉 Kotlin 注释（KDoc / 行注释），否则注释里写的
+# "window?.setBackgroundDrawableResource(...)" 会被误判成调用。
+def strip_kotlin_comments(src):
+    src = re.sub(r"/\*.*?\*/", "", src, flags=re.S)
+    return re.sub(r"//[^\n]*", "", src)
+
+
+CALL_RE = re.compile(r"window\s*\??\.\s*setBackgroundDrawableResource\s*\(")
+# 扫**全仓所有 Kotlin**，不只这两个文件 —— 只查两个文件的话，别人（或未来自己）
+# 在第三个 Activity 里重新引入这个调用，探针照样绿（M3 变异实测就是这样漏的）。
+java_dir = os.path.join(ROOT, "app/src/main/java")
+offenders = []
+for base_dir, _dirs, files in os.walk(java_dir):
+    for fn in files:
+        if not fn.endswith(".kt"):
+            continue
+        fp = os.path.join(base_dir, fn)
+        if CALL_RE.search(strip_kotlin_comments(read(fp))):
+            offenders.append(os.path.relpath(fp, ROOT).replace(os.sep, "/"))
+check("全仓没有『show 之后换弹窗背景』的调用", not offenders, ",".join(offenders))
+check("存在弹窗主题 md3_dialog_theme.xml", os.path.exists(dialog_theme))
+if os.path.exists(dialog_theme):
+    dt = read(dialog_theme)
+    check("弹窗主题基于 MaterialAlertDialog.Material3",
+          'parent="MaterialAlertDialog.Material3"' in dt)
+    check("弹窗圆角走 ?attr/dshCardRadius", "?attr/dshCardRadius" in dt)
+for themes_path, label in ((light_path, "values"), (night_path, "values-night")):
+    txt = read(themes_path)
+    check(f"{label} 两套主题都设了 materialAlertDialogTheme",
+          txt.count('materialAlertDialogTheme">@style/ThemeOverlay.Dsh.MaterialAlertDialog') == 2,
+          f"count={txt.count('materialAlertDialogTheme')}")
 
 # ---- T4 通知/浮层图标必须保持静态 ----
 MUST_STAY_STATIC = ["ic_download", "ic_health", "ic_pet"]

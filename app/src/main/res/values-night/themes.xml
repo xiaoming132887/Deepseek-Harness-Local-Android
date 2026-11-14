@@ -35,6 +35,8 @@
         <item name="android:windowLightStatusBar">false</item>
         <item name="android:windowLightNavigationBar">false</item>
         <item name="android:alertDialogTheme">@style/Theme.Dsh.Dialog</item>
+        <!-- v1.8.1：Material 弹窗统一主题（md3Dialog / showMd3 链路） -->
+        <item name="materialAlertDialogTheme">@style/ThemeOverlay.Dsh.MaterialAlertDialog</item>
         <!-- v1.4.43：允许窗口画进挖孔区。全屏时真正的沉浸式需要它，
              否则系统会在顶部保留一条与挖孔等高的黑边。
              shortEdges 在显示状态栏时无副作用（状态栏本身会占位）。 -->
@@ -62,6 +64,15 @@
         <item name="dshOverlay">@color/overlay</item>
         <item name="dshIslandText">@color/island_text</item>
         <item name="dshIslandAccent">@color/island_accent</item>
+
+        <!-- 形态令牌（v1.8.1）：与 values/themes.xml 的经典一致 -->
+        <item name="dshCardRadius">18dp</item>
+        <item name="dshCardStroke">1dp</item>
+        <item name="dshIconChipRadius">12dp</item>
+        <item name="dshIconChipStroke">1dp</item>
+        <item name="dshButtonRadius">20dp</item>
+        <item name="dshControlRadius">12dp</item>
+        <item name="dshGridCellRadius">16dp</item>
     </style>
 
     <style name="Theme.Dsh.Spinner" parent="Theme.Material3.Dark.NoActionBar">
@@ -131,7 +142,9 @@
              设置体系 17 个页面（覆写 usesSettingsBackground 的 Activity）的
              AlertDialog 会落回平台默认样式。 -->
         <item name="android:alertDialogTheme">@style/Theme.Dsh.Dialog</item>
-    
+        <!-- v1.8.1：Material 弹窗统一主题（md3Dialog / showMd3 链路） -->
+        <item name="materialAlertDialogTheme">@style/ThemeOverlay.Dsh.MaterialAlertDialog</item>
+
         <!-- 风格令牌（v1.8.0，MD3 暖灰青墨的夜间取值） -->
         <item name="dshBg">@color/md3_bg</item>
         <item name="dshSurface">@color/md3_surface</item>
@@ -154,6 +167,15 @@
         <item name="dshOverlay">@color/overlay</item>
         <item name="dshIslandText">@color/md3_on_surface_variant</item>
         <item name="dshIslandAccent">@color/md3_primary</item>
+
+        <!-- 形态令牌（v1.8.1）：与 values/themes.xml 的 MD3 一致 -->
+        <item name="dshCardRadius">24dp</item>
+        <item name="dshCardStroke">0dp</item>
+        <item name="dshIconChipRadius">999dp</item>
+        <item name="dshIconChipStroke">0dp</item>
+        <item name="dshButtonRadius">999dp</item>
+        <item name="dshControlRadius">16dp</item>
+        <item name="dshGridCellRadius">20dp</item>
     </style>
 
 </resources>

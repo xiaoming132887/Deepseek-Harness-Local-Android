@@ -723,7 +723,6 @@ class SettingsActivity : ThemedActivity() {
             .create()
 
         dialog.setOnShowListener {
-            dialog.window?.setBackgroundDrawableResource(R.drawable.bg_dialog_rounded)
             dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
                 val raw = input.text.toString()
                 if (!RuntimeDownloadConfig.isValid(raw)) {
@@ -754,9 +753,6 @@ class SettingsActivity : ThemedActivity() {
     /** 统一弹窗样式：覆盖自绘圆角背景，贴近原生安卓对话框的圆润观感 */
     private fun AlertDialog.Builder.showStyled(): AlertDialog =
         create().apply {
-            setOnShowListener {
-                window?.setBackgroundDrawableResource(R.drawable.bg_dialog_rounded)
-            }
             show()
         }
 

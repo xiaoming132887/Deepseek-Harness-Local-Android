@@ -104,14 +104,14 @@ enum class Accent(
                     AccentColor(argb, preset.labelRes, custom = true)
                 }
                 ThemeAccent.Mode.DYNAMIC -> {
+                    // ★ v1.8.1：不再读 MaterialColors.getColor(colorPrimary)。
+                    // 那条路要求 DynamicColors 已经把 Monet 装进主题，而我们在
+                    // ThemedActivity 里刻意不再注入 DynamicColors（它会改 Resources
+                    // → 触发第二次 relaunch → 用户看到闪屏）。现在直接读系统
+                    // system_accent1 资源，不碰主题、不碰配置。
                     val fallback = preset.argb
-                    val primary = runCatching {
-                        com.google.android.material.color.MaterialColors.getColor(
-                            ctx,
-                            com.google.android.material.R.attr.colorPrimary,
-                            fallback,
-                        )
-                    }.getOrDefault(fallback)
+                    val dark = ThemeManager.isDarkNow(ctx)
+                    val primary = SystemAccent.primary(ctx, dark, fallback)
                     AccentColor(primary, R.string.theme_color_dynamic, dynamic = true)
                 }
                 ThemeAccent.Mode.PRESET -> preset.toColor()

@@ -339,14 +339,17 @@ class AppearanceActivity : ThemedActivity() {
         setTextColor(Accent.current(this.context).argb)
     }
 
-    /** 统一弹窗样式：覆盖自绘圆角背景 */
+    /**
+     * 统一弹窗样式。
+     *
+     * v1.8.1 起**不再**在这里换背景：窗口 attach 之后再
+     * `setBackgroundDrawableResource` 会让面板首帧后突然从「内缩一圈」撑成整窗，
+     * 真机逐帧实测就是「先在上方闪一下再归位」。容器色/圆角/inset 现由
+     * 主题 `materialAlertDialogTheme`（ThemeOverlay.Dsh.MaterialAlertDialog）
+     * 在 builder 构造期定好，首帧即终态。
+     */
     private fun AlertDialog.Builder.showMd3(): AlertDialog =
-        create().apply {
-            setOnShowListener {
-                window?.setBackgroundDrawableResource(R.drawable.bg_dialog_rounded)
-            }
-            show()
-        }
+        create().apply { show() }
 
     private companion object {
         const val PREFS_UI = DshApp.PREFS_UI

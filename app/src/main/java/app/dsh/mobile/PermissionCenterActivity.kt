@@ -516,7 +516,6 @@ class PermissionCenterActivity : ThemedActivity() {
             .setView(box)
             .setNegativeButton(android.R.string.cancel, null)
             .create()
-        privPickDialog?.window?.setBackgroundDrawableResource(R.drawable.bg_dialog_rounded)
         privPickDialog?.show()
     }
 
@@ -572,9 +571,6 @@ class PermissionCenterActivity : ThemedActivity() {
     /** 统一弹窗样式：覆盖自绘圆角背景，贴近原生安卓对话框的圆润观感 */
     private fun AlertDialog.Builder.showStyled(): AlertDialog =
         create().apply {
-            setOnShowListener {
-                window?.setBackgroundDrawableResource(R.drawable.bg_dialog_rounded)
-            }
             show()
         }
 
@@ -1089,7 +1085,6 @@ class PermissionCenterActivity : ThemedActivity() {
             .setView(box)
             .setNegativeButton(getString(R.string.setting_cap_detail_close), null)
             .create()
-        dialog.window?.setBackgroundDrawableResource(R.drawable.bg_dialog_rounded)
         dialog.show()
 
         sw.setOnCheckedChangeListener { _, checked ->

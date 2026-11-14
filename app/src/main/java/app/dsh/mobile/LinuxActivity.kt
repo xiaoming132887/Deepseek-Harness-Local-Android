@@ -2913,9 +2913,6 @@ class LinuxActivity : ThemedActivity() {
     /** 与设置页的对话框同一个圆角底板 */
     private fun android.app.AlertDialog.Builder.showRounded(): android.app.AlertDialog =
         create().apply {
-            setOnShowListener {
-                window?.setBackgroundDrawableResource(R.drawable.bg_dialog_rounded)
-            }
             show()
         }
 

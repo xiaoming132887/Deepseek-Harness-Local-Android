@@ -264,14 +264,17 @@ android {
         // （pkill -f 自杀 / Xvfb 写死 :99 撞残留 socket / -nolock 非 root 无效）
         // 重写四条启动链路：行首锚定停进程 + pidfile、99..119 现挑 display 号、
         // 等真实帧落地才报成功、display 号落 bind 目录供 inputd 复用。
-        // versionCode 继续单调递增：375 → … → 386 → 387 → 388。
-        versionCode = 388
+        // v1.6.0-beta.13（2026-11-14）：MD3 形态层真分叉（圆角/描边/胶囊/正圆图标底）
+        // + 动态取色不再重建 Activity（去掉 DynamicColors 的 Resources 覆盖）
+        // + 弹窗不再 show 后换背景（背景 inset 造成首帧跳变）。
+        // versionCode 继续单调递增：375 → … → 387 → 388 → 389（388 由 Linux 工作台那轮占用）。
+        versionCode = 389
         // v1.5.0 起进入 1.5 系列：设备能力（蓝牙报文/WiFi 底层/定时提醒）+ AI 开关 UI。
         // versionName 允许带后缀（Android 不校验格式）。v1.5.0 起 CI 支持两种 tag 形态
         // （见 android-build.yml:68-86）：v1.5.0（正式版，prerelease: false）与
         // v1.5.0-beta.2（试发行，prerelease: true），但 tag 必须与 versionName 完全拼得上
         // （publish-release 的 `test "$GITHUB_REF_NAME" = "v$V"`），所以打 tag 前先确认这里。
-        versionName = "1.6.0-beta.12"
+        versionName = "1.6.0-beta.13"
 
         ndk {
             abiFilters += listOf(targetAbi)

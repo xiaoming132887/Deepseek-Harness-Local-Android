@@ -44,10 +44,10 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="@dimen/md3_card_gap_first"
-                app:cardCornerRadius="18dp"
+                app:cardCornerRadius="?attr/dshCardRadius"
                 app:cardElevation="0dp"
                 app:strokeColor="?attr/dshStroke"
-                app:strokeWidth="1dp"
+                app:strokeWidth="?attr/dshCardStroke"
                 app:cardBackgroundColor="?attr/dshSurface">
 
                 <LinearLayout
@@ -132,10 +132,10 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="@dimen/md3_card_gap"
-                app:cardCornerRadius="18dp"
+                app:cardCornerRadius="?attr/dshCardRadius"
                 app:cardElevation="0dp"
                 app:strokeColor="?attr/dshStroke"
-                app:strokeWidth="1dp"
+                app:strokeWidth="?attr/dshCardStroke"
                 app:cardBackgroundColor="?attr/dshSurface">
 
                 <LinearLayout
@@ -199,10 +199,10 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="@dimen/md3_card_gap"
-                app:cardCornerRadius="18dp"
+                app:cardCornerRadius="?attr/dshCardRadius"
                 app:cardElevation="0dp"
                 app:strokeColor="?attr/dshStroke"
-                app:strokeWidth="1dp"
+                app:strokeWidth="?attr/dshCardStroke"
                 app:cardBackgroundColor="?attr/dshSurface">
 
                 <LinearLayout
@@ -281,10 +281,10 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="@dimen/md3_card_gap"
-                app:cardCornerRadius="18dp"
+                app:cardCornerRadius="?attr/dshCardRadius"
                 app:cardElevation="0dp"
                 app:strokeColor="?attr/dshStroke"
-                app:strokeWidth="1dp"
+                app:strokeWidth="?attr/dshCardStroke"
                 app:cardBackgroundColor="?attr/dshSurface">
 
                 <LinearLayout

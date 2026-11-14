@@ -42,6 +42,11 @@
         <item name="android:windowLightStatusBar">true</item>
         <item name="android:windowLightNavigationBar">true</item>
         <item name="android:alertDialogTheme">@style/Theme.Dsh.Dialog</item>
+        <!-- v1.8.1：MaterialAlertDialogBuilder（md3Dialog / showMd3）走这条。
+             以前全仓没设这个属性，11 处 md3Dialog() 落回 Material 默认弹窗
+             （Material3 暖灰板 + 80dp 上下 inset），与设置页色板不同源；
+             现在统一到 Dsh 的 overlay，容器色/字色/圆角全跟随风格令牌。 -->
+        <item name="materialAlertDialogTheme">@style/ThemeOverlay.Dsh.MaterialAlertDialog</item>
         <!-- v1.4.43：允许窗口画进挖孔区。全屏时真正的沉浸式需要它，
              否则系统会在顶部保留一条与挖孔等高的黑边。
              shortEdges 在显示状态栏时无副作用（状态栏本身会占位）。 -->
@@ -75,6 +80,16 @@
         <item name="dshOverlay">@color/overlay</item>
         <item name="dshIslandText">@color/island_text</item>
         <item name="dshIslandAccent">@color/island_accent</item>
+
+        <!-- ===== 形态令牌（v1.8.1）：经典 = 现状原值，一个像素不改 =====
+             18dp 卡片 + 1dp 描边 + 12dp 图标底圈，是 v1.5.6 定下的身份。 -->
+        <item name="dshCardRadius">18dp</item>
+        <item name="dshCardStroke">1dp</item>
+        <item name="dshIconChipRadius">12dp</item>
+        <item name="dshIconChipStroke">1dp</item>
+        <item name="dshButtonRadius">20dp</item>
+        <item name="dshControlRadius">12dp</item>
+        <item name="dshGridCellRadius">16dp</item>
     </style>
 
     <style name="Theme.Dsh.Spinner" parent="Theme.Material3.Light.NoActionBar">
@@ -165,6 +180,8 @@
              至今没设，属于已知的样式缺口（改用 android:alertDialogTheme 只能盖住
              前者）。要统一观感需显式补 materialAlertDialogTheme。 -->
         <item name="android:alertDialogTheme">@style/Theme.Dsh.Dialog</item>
+        <!-- v1.8.1：Material 弹窗统一主题（md3Dialog / showMd3 链路） -->
+        <item name="materialAlertDialogTheme">@style/ThemeOverlay.Dsh.MaterialAlertDialog</item>
 
         <!-- ===== 风格令牌（v1.8.0）=====
              与 Theme.Dsh 的精典冷蓝灰区分开：这一套是 MD3 原生暖灰 + 青墨。
@@ -192,6 +209,25 @@
         <item name="dshOverlay">@color/overlay</item>
         <item name="dshIslandText">@color/md3_on_surface_variant</item>
         <item name="dshIslandAccent">@color/md3_primary</item>
+
+        <!-- ===== 形态令牌（v1.8.1）：MD3 = 真·Material 3 形态 =====
+             只改色不算换风格。这里按 M3 规范把形态也分叉：
+
+               · 卡片圆角 24dp（M3 的 "large" 档；经典是 18dp）
+               · 卡片描边 0dp —— M3 filled card 本来就没描边，
+                 经典那圈 1dp 冷灰线是旧身份的一部分
+               · 图标底圈 999dp —— M3 的 leading icon 是**正圆** tonal chip，
+                 经典的 12dp 圆角小方块换成圆之后，一眼就能分辨
+               · 图标底圈描边 0dp —— 同上，M3 tonal chip 无描边
+               · 按钮 999dp 全圆胶囊 —— M3 按钮就是 fully rounded
+               · 输入框/小控件 16dp（M3 的 "large" 小控件档） -->
+        <item name="dshCardRadius">24dp</item>
+        <item name="dshCardStroke">0dp</item>
+        <item name="dshIconChipRadius">999dp</item>
+        <item name="dshIconChipStroke">0dp</item>
+        <item name="dshButtonRadius">999dp</item>
+        <item name="dshControlRadius">16dp</item>
+        <item name="dshGridCellRadius">20dp</item>
     
         <!-- ===== v1.8.0：MD3 主题改用原生暖灰色板 =====
              作者原先把 MD3 语义色全映射回旧冷蓝灰（见本文件顶部注释），

@@ -68,7 +68,6 @@ object FailureDialog {
                 .setPositiveButton(android.R.string.ok, null)
                 .create()
                 .apply {
-                    setOnShowListener { window?.setBackgroundDrawableResource(R.drawable.bg_dialog_rounded) }
                     show()
                 }
             return
@@ -148,7 +147,6 @@ object FailureDialog {
             .setView(ScrollView(activity).apply { addView(box) })
             .setPositiveButton(android.R.string.ok, null)
             .create()
-        dlg.setOnShowListener { dlg.window?.setBackgroundDrawableResource(R.drawable.bg_dialog_rounded) }
         dlg.show()
     }
 

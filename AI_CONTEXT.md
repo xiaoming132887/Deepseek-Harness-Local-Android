@@ -8,7 +8,7 @@
 > [`git-workflow.md`](docs/git-workflow.md) 推送通道 ·
 > [`RELEASE.md`](docs/RELEASE.md) 发版流程
 
-**最后更新**：2026-11-14 · 本地 HEAD `5cf78a4b`（**未推**）· 本轮新增「容器里 C 编译跑不起来的两层根因」（见一百二十七节）。
+**最后更新**：2026-11-14 · 本地 HEAD `04bdedbd`（**未推**）· 本轮新增「MD3 从只改颜色改成真形态分叉 + 动态取色闪屏 / 弹窗跳变两个真 bug」（见一百二十九节）。
 > ⚠️ 远端 `main` 仍停在 `456747ef`：GitHub 凭据（`ghp_` 40 位）已被吊销，API 返回 401，
 > 本地 1 个提交待推。需要维护者重新授权后才能推。
 本轮：**灵动岛两处观感修复** —— ① 用户报「收起态展开会连续展开两次」，录屏逐帧量测证明确有
@@ -13443,3 +13443,105 @@ display 号与各进程 pid 必须被**另外两次**独立的 `runner.shell()`�
 `engine/LinuxPackageManager.kt`（已 staged）、`engine/RootfsModes.kt` + `RootfsModesTest.kt`（已 staged）、
 `res/layout/activity_onboarding.xml` 属并行会话在途，本轮未纳入提交。
 
+## 一百二十九 · 2026-11-14 MD3 从「只改颜色」改成真形态分叉 + 动态取色闪屏 / 弹窗跳变两个真 bug
+
+用户反馈三条（原话）：「这MD3不就改了个颜色吗？有啥区别???」/「动态取色，点击一下是直接闪屏的」/
+「点击页面缩放的时候，那个弹窗是先上面闪一下，然后再归位到中间」。
+
+### 1. 「只改了颜色」属实 —— 形态一个 item 都没分叉
+
+`values/themes.xml` 里 `Theme.Dsh` 与 `Theme.Dsh.MD3` 逐项比对：**取值不同的全是颜色**，
+shape / corner / elevation / textAppearance / fontFamily 两套都是 0 个。圆角全部写死在布局与 drawable：
+`app:cardCornerRadius="18dp"` 22 处、`app:strokeWidth="1dp"` 22 处、drawable 里
+`@dimen/md3_card_radius`(20dp) / 18dp / 12dp 各若干。
+
+修法：在 `values/attrs_style.xml` 追加 **7 个 dimension 令牌**（dshCardRadius / dshCardStroke /
+dshIconChipRadius / dshIconChipStroke / dshButtonRadius / dshControlRadius / dshGridCellRadius），
+两套主题各注入一份，取值：
+
+| 令牌 | 经典（现状原值） | MD3 |
+|---|---|---|
+| dshCardRadius | 18dp | 24dp |
+| dshCardStroke | 1dp | 0dp |
+| dshIconChipRadius | 12dp | 999dp（正圆） |
+| dshIconChipStroke | 1dp | 0dp |
+| dshButtonRadius | 20dp | 999dp（全圆胶囊） |
+| dshControlRadius | 12dp | 16dp |
+| dshGridCellRadius | 16dp | 20dp |
+
+令牌化范围：布局 7 文件（activity_about / asr_app / maintenance / permission_center / settings_bg / theme /
+update_settings）+ drawable 9 文件（bg_card / bg_md3_card / bg_md3_group / bg_md3_seg_top|single|bottom /
+bg_md3_grid_cell / bg_md3_icon_chip / bg_md3_input）。
+
+**aapt2 事实**：`?attr` 尺寸可以写在 `<corners android:radius>` 与 `app:cardCornerRadius` 里
+（先做 zz_spike_* 探针跑 `:app:mergeReleaseResources` EXIT=0 才铺开，探针文件随后删除）。
+
+### 2. 弹窗「先上面闪一下再归位」= Material 的背景 inset 被 show 之后换掉
+
+`materialAlertDialogTheme` 全仓从未设过，11 处 `MaterialAlertDialogBuilder` 吃 Material 默认主题；
+`ThemedActivity.showMd3()` 在 `setOnShowListener` 里 `window.setBackgroundDrawableResource(bg_dialog_rounded)`。
+反编译 material-1.12.0 确认：`MaterialAlertDialogBuilder.create()` 会用
+`MaterialDialogs.insetDrawable(background, backgroundInsets)` 把窗口背景包成 InsetDrawable
+（MaterialComponents 默认 **上下 80dp / 左右 24dp**）。show 之后把它换成不含 inset 的纯 shape →
+面板可绘制区从「窗口内缩一圈」变成「整个窗口」，首帧后突然变大。
+
+修法：新增 `values/md3_dialog_theme.xml`（`DshMaterialAlertDialog` parent=MaterialAlertDialog.Material3，
+backgroundInset 四边统一 24dp、`backgroundTint=?attr/dshDialogBg`、圆角走 `?attr/dshCardRadius`；
+`ThemeOverlay.Dsh.MaterialAlertDialog` 把 colorSurfaceContainerHigh / colorOnSurface / colorPrimary 等
+映射到 dsh* 令牌），两套主题各注入一处；**全仓 12 处「show 之后换背景」全部删除**
+（ThemedActivity / AppearanceActivity / FailureDialog×2 / ReportDialog / OnboardingActivity /
+LinuxActivity / MaintenanceActivity / PermissionCenterActivity×3 / PkgProgressDialog / SettingsActivity×2）。
+
+### 3. 动态取色闪屏 = 两次 relaunch，第二来自 DynamicColors 改 Resources
+
+`adb logcat -b events` 抓到点一下开关产生 **2 次** `handleRelaunchActivity`，插桩确认只有 1 次
+`recreate()` 来自 `ThemeActivity.setupDynamic`（空转保护 `already == checked` 是好的），第二次是
+`ThemedActivity` 在 DYNAMIC 下调 `DynamicColors.applyToActivityIfAvailable` —— API 31+ 走
+`ColorResourcesOverride` → ResourcesLoader 替换颜色资源 → **改本 Activity 的 Resources 配置** →
+系统再派一次 configuration change。排除过的三个假设：syncAppCompatNight 短路、OrientationPrefs、
+manifest 加 `|uiMode`，三者都仍 2 次。
+
+修法三条：
+1. 删掉 `DynamicColors.applyToActivityIfAvailable` 调用；
+2. 新增 `SystemAccent.kt`（直接读 `android.R.color.system_accent1_200`（深）/ `_600`（浅），
+   `runCatching` 兜底），`Accent.kt` 的 DYNAMIC 分支改走它，不再 `MaterialColors.getColor(colorPrimary)`；
+3. `ThemeActivity` 的 DYNAMIC 分支 `recreate()` → `reapaintAccentLive()`（`AccentTint.apply(decorView)` +
+   `refreshSummary()` + `setupChips()`）——**换界面风格改的是主题必须 recreate；强调色只影响运行时取色，不必重建**。
+配套把 `barBackground()` 简化成一行 `activity.dshColor(R.attr.dshBg, R.color.bg)`（Monet 不注入了，
+主题里 colorSurface 恒为卡片色，再读它反而会出「系统栏比页面白」的色带）。
+
+### 4. 探针（全部带变异反验）
+
+- `scripts/probes/_test_style_tokens.py`：从 4 组扩到 7 组 28 个令牌。新增 T5（7 个形态令牌两套齐全且取值不同）、
+  T6（全部 layout/drawable 的圆角描边必须走 `?attr`，扫全仓断言无 `app:cardCornerRadius="\d+dp"`）、
+  T7（弹窗链路：md3_dialog_theme.xml 存在 + parent 正确 + 圆角走 dshCardRadius + 两个 themes.xml 各有 2 处注入 +
+  **全仓所有 .kt 剥注释后不得出现 `window\s*\??\.\s*setBackgroundDrawableResource\s*\(`**）。
+  变异 M1 删 MD3 的 dshCardRadius / M2 icon chip 圆角改回 12dp / M3 恢复 show 后换背景 / M4 删 values-night 注入 —— 全 EXIT=1。
+  **M3 第一版假绿**（只查了两个 .kt，变异注入到别的文件就漏检），改成全仓 os.walk 才红；
+  另一个坑：注释里写着该调用会被朴素 `in` 命中，必须先 `strip_kotlin_comments()`。
+- `scripts/probes/_test_theme_flicker.py`：整份重写 19 条（旧版 5 条全基于「DYNAMIC 必须注入 DynamicColors」，
+  本轮架构反转后失效）。四变异全红（DYNAMIC 改回 recreate / 恢复 DynamicColors 注入 / barBackground 重新引入
+  dynamic 分支 / Accent 改回 MaterialColors）。**坑**：`reapaintAccentLive` 的函数体边界不能用 `// ----`
+  注释当锚（剥注释后那条边界就没了，会把整份文件的 recreate 都算进来 → 必然假红），要用 `split("private fun ")`。
+
+### 5. 验证（隔离树 `/e/tmp/wt-m3b`，基线 `d9e5a881`）
+
+- `python scripts/check-i18n.py` → All passed（0 错误）。
+- `bash scripts/run-a11y-jvm-test.sh` → **passed=2402 failed=0**。
+- `bash scripts/gate-memory.sh static` → JVM 2402/0、i18n 0、py 探针 PASS=132 FAIL=2；
+  两个红项 `_test_linux_apt_nonroot.py`（D3/D4/D5 锚点漂移：`tcp accept:` 到 `socketsAlive.set(false)` 距离已 574 字符，
+  探针窗口写死 300）与 `_test_onboarding_v2.py`（9 页向导改成 9 页后探针仍断言 7 页/pagePriv）**均在纯净 HEAD 上
+  同样红**，属既有红项，非本轮引入 —— 未登记进 `docs/reports/GATE_BASELINE.txt`，留给各自的属主。
+- `cmd //c gradle.bat -Pabi=x86_64 -Ppackage=noruntime -PdebuggableRelease=true :app:assembleRelease` →
+  BUILD SUCCESSFUL，APK **44,497,927 B**，md5 `616826664a5dfae599e6b85b0d5063b9`。
+- 模拟器 emulator-5558（Android 14 / API 34）实测：装成 `versionCode=389 / versionName=1.6.0-beta.13`；
+  点动态取色 → `handleRelaunchActivity` **0 次**、`onCreate ThemeActivity` **0 次**，偏好落盘 DYNAMIC，
+  截图开关变蓝、副标题「Current: system dynamic colour」、预设 chip 全灰不选中；
+  两套风格截图（`E:/tmp/m3b_mat.png` vs `E:/tmp/m3b_cla.png`）肉眼可辨：MD3 = 24dp 大圆角 + 无描边 +
+  正圆图标底圈 + 暖灰底；经典 = 18dp + 1dp 冷蓝灰描边 + 方形圆角图标底 + 冷蓝灰底。
+- **未验证**：缩放弹窗的逐帧量测本轮没在模拟器上重录（上一轮在同一份代码上量过：面板平滑长大 3 帧后停住，
+  修复前是 49px→174px 跳变）；真机 OnePlus PLZ110 未装本包。
+
+### 6. 版本
+
+`versionCode 388 → 389`、`versionName 1.6.0-beta.12 → 1.6.0-beta.13`（388 留给并行的 Linux 工作台改动）。

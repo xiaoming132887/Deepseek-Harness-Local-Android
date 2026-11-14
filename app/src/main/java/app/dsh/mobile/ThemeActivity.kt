@@ -153,8 +153,35 @@ class ThemeActivity : ThemedActivity() {
                 this,
                 if (checked) ThemeAccent.Mode.DYNAMIC else ThemeAccent.Mode.PRESET,
             )
-            recreate()
+            reapaintAccentLive()
         }
+    }
+
+    /**
+     * 就地换强调色，不重建页面（v1.8.1）。
+     *
+     * ## 为什么动态取色不再 recreate()
+     *
+     * 「强调色来源」（预设 / 自定义 / 跟随壁纸）与「界面风格」是两件正交的事，
+     * 但二者的生效路径完全不同：
+     *
+     *   · 界面风格换的是**主题**（Theme.Dsh ↔ Theme.Dsh.MD3），
+     *     `?attr/dshXxx` 必须重新解析 → 只能 recreate()；
+     *   · 强调色只影响 **运行时取色**（[Accent.current] 的 100+ 处调用点），
+     *     主题里的 dshAccent 是固定 @color，**不随强调色变**。
+     *
+     * 所以强调色根本不需要重建页面。[AccentTint.apply] 会把当前视图树里
+     * 的旧强调色改写成新值（幂等），再刷新摘要与预设 chip 的互斥态即可。
+     *
+     * 真机实测（Android 14 / API 34）：DYNAMIC 分支原先走 recreate()，
+     * 每次点击产生 **2 次** `Schedule relaunch activity`（recreate 本身 +
+     * 紧随其后的配置变化），两次全屏重绘就是用户说的「点一下就闪屏」。
+     * 改为就地换色后 relaunch 次数 = 0。
+     */
+    private fun reapaintAccentLive() {
+        window?.decorView?.let { AccentTint.apply(it) }
+        refreshSummary()
+        setupChips()
     }
 
     // ---------------------------------------------------------------- 预设配色

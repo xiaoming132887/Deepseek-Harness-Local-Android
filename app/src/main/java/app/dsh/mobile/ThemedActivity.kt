@@ -113,34 +113,21 @@ object ThemeManager {
     }
 
     /**
-     * 系统栏底色：优先跟随主题的 `colorSurface`，取不到时才回落到静态 `@color/bg`。
+     * 系统栏底色 = 当前风格的页面底（`?attr/dshBg`）。
      *
-     * 为什么必须这么改（移植 PR #102）：动态取色（Android 12+ Monet）会在运行时
-     * 用壁纸派生色覆盖 `colorSurface`/`colorPrimary`/`colorOnSurface`，而
-     * `@color/bg` 是资源解析期就定型的静态值 —— 用户打开「跟随壁纸」后，
-     * 页面底色变了、系统栏还是旧蓝灰，切页面的瞬间尤其明显（像闪一下旧色）。
+     * 历史（v1.7.x 移植 PR #102）：那时 DYNAMIC 模式会在 onCreate 里注入
+     * DynamicColors，它把 Monet 的 `colorSurface` 覆盖进主题，而 `@color/bg`
+     * 是资源解析期定型的静态值，于是系统栏与页面底不同色，切页会闪一下旧色。
+     * 当时的解法是「DYNAMIC 时读 colorSurface」。
      *
-     * 不能反过来「一律读 colorSurface」：PRESET/CUSTOM 模式下我们刻意不注入
-     * Monet，此时 `colorSurface` 由 themes.xml 映射到 `@color/surface`（卡片色，
-     * 通常比页面底更白/更亮），拿它当系统栏会与页面底产生一条色差。
-     * 所以只在**动态取色真的生效**时才取主题色。
+     * ★ v1.8.1：我们**不再注入 DynamicColors**（它改 Resources 配置，会触发第二次
+     * relaunch —— 见 [ThemedActivity.onCreate] 的说明），因此主题里的 colorSurface
+     * 恒等于我们自己的 md3_surface（卡片色，比页面底更白），拿它当系统栏会
+     * 出现一条色带。所以这里无条件读 dshBg —— 它本来就是「当前风格的页面底」，
+     * 风格切换时自动跟着变，也不受强调色来源影响。
      */
-    private fun barBackground(activity: Activity): Int {
-        val dynamic = runCatching {
-            ThemeAccent.mode(activity) == ThemeAccent.Mode.DYNAMIC
-        }.getOrDefault(false)
-        if (!dynamic) return activity.dshColor(R.attr.dshBg, R.color.bg)
-        val tv = android.util.TypedValue()
-        val ok = activity.theme.resolveAttribute(
-            com.google.android.material.R.attr.colorSurface, tv, true,
-        )
-        if (!ok) return activity.dshColor(R.attr.dshBg, R.color.bg)
-        return if (tv.resourceId != 0) {
-            runCatching { activity.getColor(tv.resourceId) }.getOrDefault(activity.dshColor(R.attr.dshBg, R.color.bg))
-        } else {
-            tv.data
-        }
-    }
+    private fun barBackground(activity: Activity): Int =
+        activity.dshColor(R.attr.dshBg, R.color.bg)
 }
 
 /** 所有原生 Activity 的基类：attachBaseContext 里应用主题，onCreate 里统一系统栏。 */
@@ -177,12 +164,24 @@ open class ThemedActivity : Activity() {
         }
     }
 
+    /**
+     * 弹窗统一入口（v1.8.1 起**不再**在 show 之后换背景）。
+     *
+     * 以前这里在 setOnShowListener 里做
+     * `window?.setBackgroundDrawableResource(R.drawable.bg_dialog_rounded)`。
+     * 那是窗口 attach 之后才改背景：Material 原本的窗口背景是
+     * `MaterialDialogs.insetDrawable(MaterialShapeDrawable, backgroundInsets)`（带 inset），
+     * 换成不含 inset 的纯 shape 后背景可绘制区从「窗口内缩一圈」变成「整个窗口」，
+     * 面板在首帧之后突然变大。真机逐帧实测面板高度 49px → 174px（归一化 190 高），
+     * 就是「先在上面闪一下，然后再归位到中间」。
+     *
+     * 现在容器色/圆角/inset 全部由主题 `ThemeOverlay.Dsh.MaterialAlertDialog`
+     * → `DshMaterialAlertDialog` 在 builder 构造期读定，首帧即终态。
+     * 这里只保留强调色铺色（那是运行时按用户选色，主题层做不到）。
+     */
     protected fun com.google.android.material.dialog.MaterialAlertDialogBuilder.showMd3(): androidx.appcompat.app.AlertDialog =
         create().apply {
-            setOnShowListener {
-                window?.setBackgroundDrawableResource(R.drawable.bg_dialog_rounded)
-                AccentTint.apply(window?.decorView)
-            }
+            setOnShowListener { AccentTint.apply(window?.decorView) }
         }.also { it.show() }
 
     /**
@@ -237,13 +236,17 @@ open class ThemedActivity : Activity() {
         //   · colorOnSurface 被换成近白 → 图标统一变白，原有的分类着色全丢。
         // 也就是说 themes.xml 里「MD3 语义色回映射旧色板」对任何 ?attr/color* 控件都不生效。
         // 只有用户真的选「跟随壁纸」时才该让 Monet 接管，其余情况必须让我们的色板说了算。
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S &&
-            ThemeAccent.mode(this) == ThemeAccent.Mode.DYNAMIC
-        ) {
-            runCatching {
-                com.google.android.material.color.DynamicColors.applyToActivityIfAvailable(this)
-            }
-        }
+        // ★ v1.8.1：不再在这里注入 DynamicColors。
+        //
+        // 原来 DYNAMIC 模式会调 DynamicColors.applyToActivityIfAvailable(this)，
+        // 它在 API 31+ 走 ColorResourcesOverride → ResourcesLoader 替换颜色资源，
+        // 这会**改变本 Activity 的 Resources 配置**，于是系统紧接着再发一次
+        // configuration change → 第二次 relaunch。真机/模拟器实测（Android 14）：
+        // 点一下「动态取色」屏幕重绘两次（ActUi 32 vs 应用 16 的配置差被再次应用），
+        // 用户看到的就是「点一下就闪屏」。
+        //
+        // 现在动态取色的取色改由 [SystemAccent] 直接读系统的 system_accent 色，
+        // 不碰 Resources、不产生配置变化，只保留我们自己的一次 recreate()。
         super.onCreate(savedInstanceState)
         ThemeManager.applyBars(this)
     }
