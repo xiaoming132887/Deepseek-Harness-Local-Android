@@ -43,6 +43,16 @@ def read(p):
         return f.read()
 
 
+def strip_xml_comments(txt):
+    """去掉 <!-- --> 注释。
+
+    ⚠️ 必须剥：这些 drawable 的注释里会**点名** ?attr（解释为什么不能用它），
+    不剥就会把注释当成违规 —— 反向验证时把 fillColor 改回 ?attr 反而"通过"，
+    因为注释里的 ?attr 一直在。判据必须只看真正生效的属性。
+    """
+    return re.sub(r"<!--.*?-->", "", txt, flags=re.S)
+
+
 def style_items(path, style):
     txt = read(path)
     m = re.search(r'<style name="' + re.escape(style) + r'"[^>]*>(.*?)</style>', txt, re.S)
@@ -179,15 +189,39 @@ for name in MUST_STAY_STATIC:
     p = os.path.join(RES, "drawable", name + ".xml")
     if not os.path.exists(p):
         continue
-    txt = read(p)
+    txt = strip_xml_comments(read(p))
     check(f"{name} 不用 ?attr（通知栏无 Activity 主题）", "?attr/" not in txt)
+
+# 无障碍悬浮窗里**所有**图标同理（v1.8.2 真机事故：ic_mic 漏网）
+#
+# 为什么单独查：StatusOverlay.show() 用 `LayoutInflater.from(svc.applicationContext)`
+# 取图 —— 服务上下文没有 Activity 主题，?attr 会落到 application theme（Light 变体）
+# 解析。而同窗口的面板底色 bg_overlay_panel 用的是**静态** @color/surface_glass
+# （跟随系统夜间）。两个解析源不一致，夜间就是「浅色面板 + 白色图标」，
+# 图标整个看不见（实测该区域内非底色像素 0 个）。
+#
+# 判据取「overlay_status.xml 引用的全部 drawable」，而不是维护一份手写白名单 ——
+# 手写清单漏一个就是这个 bug，而这正是它当初被漏掉的方式。
+_m_layout = read(os.path.join(RES, "layout", "overlay_status.xml"))
+_overlay_drawables = sorted(set(re.findall(r"@drawable/([A-Za-z0-9_]+)", _m_layout)))
+check("overlay_status.xml 解析到 drawable 引用", len(_overlay_drawables) >= 3,
+      "解析到：%s" % ", ".join(_overlay_drawables))
+for name in _overlay_drawables:
+    p = os.path.join(RES, "drawable", name + ".xml")
+    if not os.path.exists(p):
+        continue
+    txt = strip_xml_comments(read(p))
+    check(f"{name} 不用 ?attr（无障碍悬浮窗跑在服务上下文，没有 Activity 主题）",
+          "?attr/" not in txt,
+          "该 drawable 被 overlay_status.xml 引用；服务上下文里 ?attr 会解析到 "
+          "application theme，与静态面板底色错配，夜间图标会消失")
 
 # 闪屏与浮层背景同理
 for name in ("splash_bg", "bg_dynamic_island_dot", "bg_overlay_panel", "bg_overlay_ball"):
     p = os.path.join(RES, "drawable", name + ".xml")
     if not os.path.exists(p):
         continue
-    txt = read(p)
+    txt = strip_xml_comments(read(p))
     check(f"{name} 不用 ?attr（Service 上下文取图）", "?attr/" not in txt)
 
 # ---- 主题分派跟随风格，而不是跟随 usesSettingsBackground ----

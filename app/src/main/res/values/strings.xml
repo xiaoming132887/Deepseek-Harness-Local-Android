@@ -1696,6 +1696,10 @@
     <string name="asr_local_set_default">Set as default</string>
     <string name="asr_local_self_check">Self check</string>
     <string name="asr_local_need_install">Install the speech recognizer first</string>
+    <string name="asr_local_state_outdated">Update needed</string>
+    <string name="asr_local_desc_outdated">The installed recognizer is older than the version this page requires, so the one-tap setup (set as default / self-check / model status) is unavailable. Update it below — your downloaded models are kept.</string>
+    <string name="asr_local_need_update">Update the speech recognizer first</string>
+    <string name="asr_local_action_failed">This action is not available on the installed recognizer version</string>
     <string name="setting_linux_ssh">SSH dev environment</string>
     <string name="setting_linux_ssh_sub">Let a PC connect straight into the Linux container over standard SSH</string>
     <string name="linux_ssh_consent">This opens port 2222 on your local network and runs an SSH server inside the app. Anyone on the same Wi-Fi who knows the password can run commands in the Linux container.\n\nOnly turn it on on networks you trust, and turn it off when you are done.</string>

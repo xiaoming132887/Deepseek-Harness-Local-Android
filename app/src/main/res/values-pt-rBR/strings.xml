@@ -1656,6 +1656,10 @@
     <string name="asr_local_set_default">Definir padrão</string>
     <string name="asr_local_self_check">Autoteste</string>
     <string name="asr_local_need_install">Instale o reconhecedor primeiro</string>
+    <string name="asr_local_state_outdated">Atualização necessária</string>
+    <string name="asr_local_desc_outdated">O reconhecedor instalado é mais antigo que o exigido por esta página, então as ações de um toque (definir como padrão / autoteste / status do modelo) não estão disponíveis. Atualize abaixo — os modelos já baixados são mantidos.</string>
+    <string name="asr_local_need_update">Atualize o reconhecedor primeiro</string>
+    <string name="asr_local_action_failed">Esta ação não está disponível nesta versão do reconhecedor</string>
     <string name="setting_linux_ssh">Ambiente SSH</string>
     <string name="setting_linux_ssh_sub">Permitir que um PC entre direto no contêiner Linux via SSH padrao</string>
     <string name="linux_ssh_consent">Isto abre a porta 2222 e executa um servidor SSH dentro do app. Quem estiver na mesma Wi-Fi e souber a senha pode executar comandos no contêiner Linux.\n\nAtive apenas em redes confiaveis e desative ao terminar.</string>

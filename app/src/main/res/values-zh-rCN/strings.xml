@@ -1699,6 +1699,10 @@
     <string name="asr_local_set_default">设为默认</string>
     <string name="asr_local_self_check">自检</string>
     <string name="asr_local_need_install">请先安装语音识别服务</string>
+    <string name="asr_local_state_outdated">需更新</string>
+    <string name="asr_local_desc_outdated">已装的识别服务比本页要求的版本旧，一键设置（设为默认 / 自检 / 模型状态）用不了。在下面更新一次即可，已下载的模型不会丢。</string>
+    <string name="asr_local_need_update">请先更新语音识别服务</string>
+    <string name="asr_local_action_failed">当前识别服务版本不支持这个操作</string>
     <string name="setting_linux_ssh">SSH 开发环境</string>
     <string name="setting_linux_ssh_sub">让电脑用标准 SSH 直接连进 Linux 容器</string>
     <string name="linux_ssh_consent">这会开启 2222 端口，在应用内跑一个 SSH 服务端。同一个 Wi-Fi 下知道密码的人就能在 Linux 容器里执行命令。\n\n只在你信任的网络里开，用完请关掉。</string>
