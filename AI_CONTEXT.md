@@ -8,7 +8,7 @@
 > [`git-workflow.md`](docs/git-workflow.md) 推送通道 ·
 > [`RELEASE.md`](docs/RELEASE.md) 发版流程
 
-**最后更新**：2026-11-14 · 本地 HEAD `04bdedbd`（**未推**）· 本轮新增「MD3 从只改颜色改成真形态分叉 + 动态取色闪屏 / 弹窗跳变两个真 bug」（见一百二十九节）。
+**最后更新**：2026-11-14 · 本地 HEAD `c1f33fdc`（**未推**）· 本轮新增「MD3 从只改颜色改成真形态分叉 + 动态取色闪屏 / 弹窗跳变两个真 bug」（见一百二十九节）。
 > ⚠️ 远端 `main` 仍停在 `456747ef`：GitHub 凭据（`ghp_` 40 位）已被吊销，API 返回 401，
 > 本地 1 个提交待推。需要维护者重新授权后才能推。
 本轮：**灵动岛两处观感修复** —— ① 用户报「收起态展开会连续展开两次」，录屏逐帧量测证明确有
@@ -13524,7 +13524,7 @@ manifest 加 `|uiMode`，三者都仍 2 次。
   dynamic 分支 / Accent 改回 MaterialColors）。**坑**：`reapaintAccentLive` 的函数体边界不能用 `// ----`
   注释当锚（剥注释后那条边界就没了，会把整份文件的 recreate 都算进来 → 必然假红），要用 `split("private fun ")`。
 
-### 5. 验证（隔离树 `/e/tmp/wt-m3b`，基线 `d9e5a881`）
+### 5. 验证（隔离树 `/e/tmp/wt-m3c`，基线 `04bdedbd`；初次是在 `/e/tmp/wt-m3b`（`d9e5a881`）上做的，`04bdedbd` 落地后重新在新基线复跑，本段数字均取自新基线）
 
 - `python scripts/check-i18n.py` → All passed（0 错误）。
 - `bash scripts/run-a11y-jvm-test.sh` → **passed=2402 failed=0**。
