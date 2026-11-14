@@ -13628,9 +13628,11 @@ PTC 白名单（`LD_LIBRARY_PATH` / `OPENSSL_CONF` / `SSL_CERT_FILE` / `MAGICK_C
 产物与核验：
 
 | 项 | 值 |
-| 路径 | `/e/tmp/rel390/dsh-mobile-v1.6.0-beta.14-arm64-v8a-FULL-runtime.apk` |
-| 体积 | **189,084,815 B**（180 MB） |
-| md5 | `85fb6caa8e7fc78575b8f10fb50528a1` |
+| 路径 | `/e/tmp/rel390/dsh-mobile-v1.6.0-beta.14-arm64-v8a-FULL-hardssh.apk` |
+| 体积 | **190,068,009 B**（181 MB） |
+| md5 | `8db333c5385e7896602f5a44a1e67471` |
+| 内置 hardssh | `@xiaopb/dsh-hardssh@0.2.13`（bundle sha `5b004898…`，3,047,657 B，215 条目） |
+| 内置 mobile-layout | `xiaopb-dsh-mobile-layout-0.4.5.tgz` |
 | 包内 `assets/runtime.zip` | 149,680,344 B，version `2026.11.14-d0bd1fde`，sha256 `078b8c33…` |
 | 内嵌引擎 | **0.2.2-rc.3** |
 | native-code | 只有 `arm64-v8a` |
@@ -13646,3 +13648,10 @@ PTC 白名单（`LD_LIBRARY_PATH` / `OPENSSL_CONF` / `SSL_CERT_FILE` / `MAGICK_C
 - 引擎 HTTP 服务活着：`adb forward tcp:13080 tcp:3080` + `curl` → **401**（要 token 才放行，属正常鉴权），
   `dsh_alpine` 进程两个（node 主进程 + web），`--patch /eng/android-overlay.yml`。
 - **注意**：模拟器是 x86_64，装不了 arm64 完整包（`NO_MATCHING_ABIS`），所以完整包**只在真机验证过**。
+
+**⚠️ 完整包缺了内置 SSH 插件（第一版漏做，已补）**：`app/src/main/assets/hardssh/` 不存在（靠 CI 的 `build-hardssh` job
+现场组装），本地直接打 full 包时 `MANIFEST.json` 的 `hardssh` 段是 `{"bundled": false}` —— 装到手机上「SSH 远程工作区」
+插件就没有了。补法：`GH_PROXY=https://gh-proxy.com/ bash scripts/pack-hardssh.sh /e/tmp/hardssh` 拿到 3.4 MB 的
+`hardssh/` 目录，再 `-PhardsshDir=E:/tmp/hardssh/hardssh` 重打。补齐后真机日志出现
+`HardsshInstaller: installed bundled ssh plugin 0.2.13` → `EngineConfig: bundled ssh plugin enabled`。
+**打包前若从 noruntime 切过来，记得先删旧 APK（见上一条空洞坑）。**
