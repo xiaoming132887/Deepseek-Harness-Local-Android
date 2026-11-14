@@ -109,12 +109,17 @@ object IslandChrome {
     ): Metrics {
         val wDp = if (dock == IslandDock.TOP) COLLAPSED_H_DP else COLLAPSED_W_DP
         val hDp = if (dock == IslandDock.TOP) COLLAPSED_W_DP else COLLAPSED_H_DP
-        val w = px(wDp, density)
-        val h = px(hDp, density)
+        // 尺寸兜底：density 异常或 dp 取整后落到 0 时，窗口会变成 0×0 ——
+        // 用户看到的就是「收起后整条消失」，且只能重启恢复。
+        val w = px(wDp, density).coerceAtLeast(1)
+        val h = px(hDp, density).coerceAtLeast(1)
         val safe = px(EDGE_SAFE_DP, density)
         val topBase = maxOf(px(10, density), safeTopPx)
         val r = ratio.coerceIn(0f, 1f)
-        return when (dock) {
+        // ⚠️ 最后一律按父容器边界收口：任何一条分支算出越界坐标（父容器尚未
+        // 测量、insets 抖动、ratio 恰好贴边），把手都会跑到屏幕外 —— 表现与
+        // 「没 addView」完全一样，只能靠重启恢复。这里统一夹一次，代价为零。
+        val raw = when (dock) {
             IslandDock.TOP -> Metrics(
                 x = (r * (parentW - w)).toInt().coerceIn(0, (parentW - w).coerceAtLeast(0)),
                 y = topBase,
@@ -134,6 +139,12 @@ object IslandChrome {
                 h = h,
             )
         }
+        return Metrics(
+            x = raw.x.coerceIn(0, (parentW - raw.w).coerceAtLeast(0)),
+            y = raw.y.coerceIn(0, (parentH - raw.h).coerceAtLeast(0)),
+            w = raw.w,
+            h = raw.h,
+        )
     }
 
     /** 展开面板是否被高度上限截断（需要内部滚动）。 */

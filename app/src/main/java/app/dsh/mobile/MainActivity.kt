@@ -1217,7 +1217,13 @@ runCatching { (application as DshApp).supervisor.webUrl() }
         val handle = findViewById<View>(R.id.handleBar) ?: return
         val side = islandDock != IslandDock.TOP
         // 侧面板正在展开时把手要让位（否则会和面板叠在屏幕边缘）
-        val panelOpen = sideHost?.visibility == View.VISIBLE
+        //
+        // ⚠️ 判据必须同时看 alpha：关闭侧面板是先播收起动画、动画结束才把
+        // sideHost 置 GONE。动画一旦被打断（连续点击、拖动、引擎状态刷新触发
+        // 重绘），sideHost 就永久停在 VISIBLE —— 于是 panelOpen 恒为 true，
+        // 把手被永久判成「让位」，同时 overlay 又因为 side=true 被隐藏，
+        // 屏幕上「条和球全没了」，只有重启（重建视图，visibility 回到 GONE）能恢复。
+        val panelOpen = sideHost?.let { it.visibility == View.VISIBLE && it.alpha > 0.01f } == true
         val showOverlay = !side && !islandCollapsed
         val showHandle = !panelOpen && (side || islandCollapsed)
         overlay.visibility = if (showOverlay) View.VISIBLE else View.GONE
@@ -1707,7 +1713,10 @@ runCatching { (application as DshApp).supervisor.webUrl() }
         val ratio = when (next) {
             IslandDock.TOP -> (cx / pw.toFloat()).coerceIn(0f, 1f)
             else -> {
-                val usable = (parent.height - v.height - safe).coerceAtLeast(1f)
+                // 分母必须与 IslandChrome.collapsedRect 的落位公式一致：
+                // 那边是 safe + r * (parentH - h - 2*safe)，这里少减一个 safe
+                // 会让「拖到最底再收起」落回的位置比拖的时候高，来回几次就漂移。
+                val usable = (parent.height - v.height - safe * 2).coerceAtLeast(1f)
                 ((cy - safe) / usable).coerceIn(0f, 1f)
             }
         }
