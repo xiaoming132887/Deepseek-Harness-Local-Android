@@ -13655,3 +13655,84 @@ PTC 白名单（`LD_LIBRARY_PATH` / `OPENSSL_CONF` / `SSL_CERT_FILE` / `MAGICK_C
 `hardssh/` 目录，再 `-PhardsshDir=E:/tmp/hardssh/hardssh` 重打。补齐后真机日志出现
 `HardsshInstaller: installed bundled ssh plugin 0.2.13` → `EngineConfig: bundled ssh plugin enabled`。
 **打包前若从 noruntime 切过来，记得先删旧 APK（见上一条空洞坑）。**
+
+## 一百三十一 · 2026-11-14 悬浮窗麦克风图标消失 + 语音页「装了旧版却说没装」（`070754e9`）
+
+两条真机反馈，根因互不相干。
+
+### 一、`ic_mic` 在无障碍悬浮窗里整个不可见
+
+**根因**：v1.8.1 MD3 令牌化把 `app/src/main/res/drawable/ic_mic.xml` 的
+`fillColor` 改成 `?attr/dshIconColor`，而同窗口面板底色 `bg_overlay_panel.xml`
+仍是静态 `@color/surface_glass`（跟随系统夜间）。
+
+`StatusOverlay.show()` 取图用 `LayoutInflater.from(svc.applicationContext)` ——
+**服务上下文，没有 Activity 主题**，`?attr` 落到 application theme（`Theme.Dsh`，
+Light 变体）。两个解析源错配 → 面板深、图标按浅色取 → 夜间图标消失。
+
+**像素取证**（emulator 夜间截图，面板 x 467..1076 / y 314..447）：
+- mic 区域 `(992..1053, 344..405)` 非底色像素 1680 个，其中 1677 个是面板自身
+  抗锯齿过渡色（`212,213,213`），**真图标像素 0 个**；
+- 同窗口暂停按钮：绿色 `34,160,107` 4049 像素 + 白色竖条 324 像素，正常。
+- 该次截图 ui_night_mode 为深色，`Theme.Dsh` 是 Light 变体 → `md3_icon_foreground`
+  在 values 里是 `#FF000000`、values-night 里才是白；实际渲染出的白图标来自
+  application theme 的浅色解析。
+
+v1.8.1 提交里明确写了排除清单「`bg_dynamic_island_dot` / `bg_overlay_*` /
+`ic_island_*`（浮层）」，**`ic_mic` 是漏网的那一个** —— 它是浮层图标，但名字不带
+overlay/island 前缀，靠人眼扫清单必然漏。
+
+**修法**：`fillColor` 回静态 `@color/icon_color`。
+`activity_settings_a11y.xml` 那处引用自带 `android:tint="?attr/colorPrimary"`，
+会覆盖 fillColor，设置页分类色不受影响。
+
+**探针加固**（`scripts/probes/_test_style_tokens.py`）：判据从「手写白名单」改成
+**「`overlay_status.xml` 实际引用的全部 drawable」**（正向枚举，漏一个就是这个
+bug 的复现形状）。三处静态色断言都先 `strip_xml_comments()` 再判 —— 注释里会
+点名 `?attr` 解释为什么不能用它，不剥注释就没法反向验证。
+
+### 二、语音服务页把「装了旧版」当「没装」
+
+**真机取证**（OnePlus PLZ110）：
+```
+app.dsh.asr  已安装  versionName=0.7.4  versionCode=31
+content query --uri content://app.dsh.asr.status/status
+    → Could not find provider: app.dsh.asr.status
+cmd package query-activities -a app.dsh.asr.SET_DEFAULT → No activities found
+cmd package query-activities -a app.dsh.asr.CHECK       → No activities found
+```
+状态卡是照 ASR **v0.8.0（versionCode 32）** 接口写的（StatusProvider +
+SET_DEFAULT + CHECK），设备装的是 0.7.4 —— 三个能力全无。
+
+旧实现只判 `getPackageInfo` 是否成功 → 「已安装」→ 按钮全亮 → `startActivity`
+抛 `ActivityNotFoundException` → 兜底 → 弹「请先安装语音识别服务」。
+**装了却报没装**，用户判定整个功能坏了。
+
+**修法**（`app/src/main/java/app/dsh/mobile/VoiceServiceActivity.kt`）：
+- `ASR_MIN_VERSION_CODE = 32`、`asrVersionCode()`、`asrTooOld()`
+  （判据 `v in 1 until ASR_MIN_VERSION_CODE`；写成 `v < MIN` 会把 0 也算旧版）。
+- 徽标四态：已就绪 / 需更新（danger）/ 已安装 / 未安装；旧版单独一段说明
+  「一键设置用不了，更新一次即可，已下载的模型不会丢」。
+- 三个一键动作在 `asrTooOld()` 时 `toast + return`，不落到 `startActivity`；
+  置灰条件 `installed && !tooOld`。
+- 旧版时不再查 StatusProvider（必然失败，白留异常日志）。
+- 六语言各 +4 条：`asr_local_state_outdated` / `asr_local_desc_outdated` /
+  `asr_local_need_update` / `asr_local_action_failed`。
+
+### 验证
+- 新探针 `scripts/probes/_test_voice_asr_version.py`（V/W/X 三组 21 项，已登记
+  `.gitignore:114` 白名单）。**三处反向验证全红**：alpha 恢复只判 installed → W4；
+  删旧版分支 → W2/W3/W4；MIN 改 1 → V2。还原后全绿。
+- 全量探针 **136/136**；`check-i18n.py` / `check-ui-tokens.py` 全过；
+  `assembleRelease` BUILD SUCCESSFUL（41,430,774 B）。
+
+### 探针自身的两个坑（已写进注释）
+① `re.search(r"listOf\(.*?\)\.forEach", code, re.S)` 非贪婪在第一个 `)` +
+`.forEach` 处停住，group 不含 lambda 体 → 「分支里有没有 return」恒假。
+② 改用 `code.find("listOf(")` 抓到的是文件里第一个 `listOf`（TTS 语速表）。
+最终锚点：唯一标识分发段的 action 名，再往前找 `listOf(` 起点。
+
+### 未覆盖
+真机逐项点按未做：设备上 ASR 是 0.7.4，升到 0.8.0 要用户自己从 GitHub Releases
+装包，我没有代装。本次修的是「正确识别并说明版本过旧」，不是「让 0.7.4 也能
+一键设默认」—— 那三个接口在 0.7.4 里根本不存在。
