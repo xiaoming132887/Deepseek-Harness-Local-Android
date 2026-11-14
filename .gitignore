@@ -57,12 +57,17 @@ node_modules/
 scripts/probes/_parts/
 scripts/probes/*.bin
 
-# 根目录调试草稿（UI dump / 临时截图，v1.4.x 清理）
+# 根目录调试草稿（UI dump / 临时截图 / 一次性分析脚本，v1.4.x 清理）
 /_*.xml
 /_*.png
 /_*.mjs
 /_*.sh
 /_*.json
+# v1.6.0-beta.14：一次性分析/出图脚本（读 catalog、数端点、裁发布图）——
+# 它们只是当时取证用的草稿，不是项目工具，留在 status 里会一直被误认为「本会话 WIP」
+/_*.py
+# 截图/构建日志的临时堆放目录
+/_tmp_shots/
 /social-preview.png
 /dsh-mobile-social.png
 

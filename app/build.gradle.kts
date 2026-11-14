@@ -267,14 +267,19 @@ android {
         // v1.6.0-beta.13（2026-11-14）：MD3 形态层真分叉（圆角/描边/胶囊/正圆图标底）
         // + 动态取色不再重建 Activity（去掉 DynamicColors 的 Resources 覆盖）
         // + 弹窗不再 show 后换背景（背景 inset 造成首帧跳变）。
-        // versionCode 继续单调递增：375 → … → 387 → 388 → 389（388 由 Linux 工作台那轮占用）。
-        versionCode = 389
+        // v1.6.0-beta.14（2026-11-14）：本版把 beta.12 / beta.13 攒下的改动一起发出去 ——
+        // ① Linux 工作台画面起不来（pkill 自杀 / Xvfb 写死 :99 / 假成功）四条链路重写；
+        // ② MD3 从「只改颜色」补上形态分叉（7 个 dimension 令牌 + 弹窗主题 + 去掉 show 后换背景）；
+        // ③ 动态取色不再重建 Activity（SystemAccent 直读 system_accent1，relaunch 0 次）；
+        // ④ 首次启动跟随系统语言（#109）；⑤ 容器里 C 编译的两层根因；⑥ 插件坏 lockfile 自愈。
+        // versionCode 继续单调递增：375 → … → 388 → 389 → 390。
+        versionCode = 390
         // v1.5.0 起进入 1.5 系列：设备能力（蓝牙报文/WiFi 底层/定时提醒）+ AI 开关 UI。
         // versionName 允许带后缀（Android 不校验格式）。v1.5.0 起 CI 支持两种 tag 形态
         // （见 android-build.yml:68-86）：v1.5.0（正式版，prerelease: false）与
         // v1.5.0-beta.2（试发行，prerelease: true），但 tag 必须与 versionName 完全拼得上
         // （publish-release 的 `test "$GITHUB_REF_NAME" = "v$V"`），所以打 tag 前先确认这里。
-        versionName = "1.6.0-beta.13"
+        versionName = "1.6.0-beta.14"
 
         ndk {
             abiFilters += listOf(targetAbi)

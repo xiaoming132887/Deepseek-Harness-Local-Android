@@ -8,9 +8,9 @@
 > [`git-workflow.md`](docs/git-workflow.md) 推送通道 ·
 > [`RELEASE.md`](docs/RELEASE.md) 发版流程
 
-**最后更新**：2026-11-14 · 本地 HEAD `c1f33fdc`（**未推**）· 本轮新增「MD3 从只改颜色改成真形态分叉 + 动态取色闪屏 / 弹窗跳变两个真 bug」（见一百二十九节）。
+**最后更新**：2026-11-14 · 本地 HEAD `d9b065c9`（**未推**）· 本轮「试发行 1.6.0-beta.14 / 390」已完成构建 + 双 ABI 产物 + 装机冒烟（见一百三十节）；上一轮是「MD3 真形态分叉 + 动态取色闪屏 / 弹窗跳变」（一百二十九节）。
 > ⚠️ 远端 `main` 仍停在 `456747ef`：GitHub 凭据（`ghp_` 40 位）已被吊销，API 返回 401，
-> 本地 1 个提交待推。需要维护者重新授权后才能推。
+> 本地 **11 个提交**待推（含本次试发行）；`v1.6.0-beta.14` 的 tag 也还没打 —— 两者都要等维护者重新授权凭据。
 本轮：**灵动岛两处观感修复** —— ① 用户报「收起态展开会连续展开两次」，录屏逐帧量测证明确有
 两轮「窄→宽」，根因是 `toggleToolbar()` 先 `renderIslandVisibility()` 再在 120ms 后压小重撑，
 两段动画叠加；把起点 scale/alpha 挪到渲染前、删掉 handle 空转动画即修。② 用户要求侧边面板
@@ -13545,3 +13545,58 @@ manifest 加 `|uiMode`，三者都仍 2 次。
 ### 6. 版本
 
 `versionCode 388 → 389`、`versionName 1.6.0-beta.12 → 1.6.0-beta.13`（388 留给并行的 Linux 工作台改动）。
+
+## 一百三十 · 2026-11-14 试发行 1.6.0-beta.14（390）：清工作区 + 打包
+
+### 1. 工作区盘点（`git status --porcelain`）
+
+开工时只剩 9 项未跟踪，全部是**别的会话留下的取证草稿**，没有一行是本轮要交付的代码：
+
+| 文件 | 是什么 |
+| --- | --- |
+| `_cat.py` / `_cat2.py` / `_cat3.py` | 读 `assets/extensions/catalog.json` 与 `EndpointCatalog.kt` 数分类/端点数的临时脚本 |
+| `_prep.py` / `_prep2.py` / `_prep3.py` | 用 PIL 把发布图裁到 `dshm-site/assets2` 的出图脚本 |
+| `_sz.py` | 读 PNG 头判尺寸的小工具 |
+| `_tmp_shots/` | 62 个文件 21 MB（UI dump xml / 截图 png / 构建日志 / 一次性 patch 脚本） |
+| `docs/ui-preview/probe-opacity.mjs` | headless Chrome 探引导页 `.page` 的 opacity/transform（11-13 引导页改版那轮） |
+
+7 个 `_*.py` 已核 **被引用次数全是 0**（全仓 grep）；`.gitignore` 原本只忽略根目录 `/_*.xml`、`/_*.png`、
+`/_*.mjs`、`/_*.sh`、`/_*.json`，漏了 `/_*.py` 与 `/_tmp_shots/` —— 补上这两条后 `git status` 只剩那一份 `.mjs`。
+`probe-opacity.mjs` **没并进本次提交**：它属于另一会话的在途工作（同目录 `shoot-onboarding.mjs` 才是已入库的那份），
+跨会话代提交会破坏「谁的改动谁提交」的边界。
+
+### 2. 版本与产物
+
+- `app/build.gradle.kts`：`versionCode 389 → 390`、`versionName 1.6.0-beta.13 → 1.6.0-beta.14`，
+  并在版本注释里补齐 beta.12 / beta.13 / beta.14 三段变更摘要（原来只写到 beta.13）。
+- 新增 `docs/release-notes/RELEASE_NOTES_v1.6.0-beta.14.md`（7 节，含「已知限制」）。
+- 打包命令（arm64 真机包 / x86_64 模拟器包共用一套参数，只换 `-Pabi`）：
+  `gradle.bat -Pabi=<abi> -Ppackage=noruntime -PdebuggableRelease=true :app:assembleRelease`
+  —— 走 `cmd.exe /c <bat>` 调（MSYS 下 `cmd //c "路径"` 会被吞成只剩 `cmd.exe`，什么都不执行）。
+- 产物：
+  | ABI | versionCode/Name | 体积 | md5 |
+  | arm64-v8a | 390 / 1.6.0-beta.14 | **43,926,645 B** | `a48bbb356cb27b00870a8fb864393a8e` |
+  | x86_64 | 390 / 1.6.0-beta.14 | **44,500,013 B** | `70dc9389828094db67a8d4b8d621464a` |
+- 签名核验：`apksigner verify --print-certs` → `CN=DSH Mobile, OU=DSH, O=Soodok`，
+  SHA-256 `d28ca4f5b7467ea19564983f492af25fd21b26b2577fbfa32c46ed59042892c8`，与 `keystore/dsh-release.credentials.txt` 一致。
+
+### 3. 门禁（主树 HEAD `d9b065c9` + 本轮三处改动）
+
+- `python scripts/check-i18n.py` → EXIT 0，`All i18n checks passed`（58 个扩展 / 8 个分类）。
+- `python scripts/check-ui-tokens.py` → EXIT 0，`All UI token checks passed`（D1/D5/D5b/D6 全 PASS）。
+- `bash scripts/run-a11y-jvm-test.sh` → **passed=2402 failed=0**。
+- 构建：两 ABI 都 BUILD SUCCESSFUL（arm64 10s、x86_64 3s，增量）。
+
+### 4. 装机冒烟（emulator-5562，Android 14 / API 34，全新安装）
+
+- **必须先卸载**：5562 上原包是**另一套 debug 证书**（`signatures=[a7c3cb58]`），与本机 release 证书不同源，
+  `adb install -r -d` 直接 `INSTALL_FAILED_UPDATE_INCOMPATIBLE`。`adb uninstall` 后重装成功。
+- 装成 `versionCode=390 / versionName=1.6.0-beta.14`，`lastUpdateTime=2026-11-14 12:54:30`。
+- `am start -n app.dsh.mobile/.MainActivity` → 首次启动落到 `OnboardingActivity`（九页向导封面），
+  文案是中文（系统 `persist.sys.locale=zh-CN`，#109 的跟随系统语言生效），`logcat -b crash` 空。
+
+### 5. 未做
+
+- **没推远端、没打 tag**：`origin/main` 仍在 `456747ef`，本地领先 **10** 个提交；GitHub 的 `ghp_` 凭据早已 401 失效
+  （见一百二十九 §2 的取证）。tag 要不要打、用哪个名字，等凭据恢复后一并处理。
+- 真机 OnePlus PLZ110 本轮不在线（`adb devices` 只有两个模拟器），arm64 包只做了构建与签名核验，未上真机。
