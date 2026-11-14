@@ -13600,3 +13600,49 @@ manifest 加 `|uiMode`，三者都仍 2 次。
 - **没推远端、没打 tag**：`origin/main` 仍在 `456747ef`，本地领先 **10** 个提交；GitHub 的 `ghp_` 凭据早已 401 失效
   （见一百二十九 §2 的取证）。tag 要不要打、用哪个名字，等凭据恢复后一并处理。
 - 真机 OnePlus PLZ110 本轮不在线（`adb devices` 只有两个模拟器），arm64 包只做了构建与签名核验，未上真机。
+
+### 6. 完整包（arm64-v8a，内嵌运行时）—— 用户追加要求
+
+用户看完精简包后要「弄一个完全包」「要ARM64」。要点：**full 包不是随便找个 runtime.zip 就能嵌**，Gradle 会验两个补丁：
+PTC 白名单（`LD_LIBRARY_PATH` / `OPENSSL_CONF` / `SSL_CERT_FILE` / `MAGICK_CONFIGURE_PATH` / bootstrap 路径兜底）
+与 WebView polyfill 能力标记。本地 `_runtime_bak/` 里 17 个 zip 我逐个开箱验过：
+
+| 包 | 引擎 | PTC 补丁 | polyfill | 可打 full？ |
+| `rt-arm64-20261112.zip`（137 MB，rc.1） | 0.2.2-rc.1 | **缺 bootstrap 兜底** | v5 ✅ | ❌ |
+| `rt-arm64-zodded.zip`（176 MB） | rc.1 | 缺 bootstrap 兜底 | v4 | ❌ |
+| `rt-arm64-work.zip`（231 MB） | rc.1 | 缺 4 项 | v4 | ❌ |
+| 官方 `runtime` prerelease（149.7 MB） | **0.2.2-rc.3** | **全齐** | v5 | ✅ |
+
+所以 full 包只能拿官方滚动 prerelease `runtime` 的 `runtime-arm64-v8a.zip`。踩到的坑：
+
+1. **`-PruntimeZip=_runtime_bak/xxx.zip` 用相对路径无效** —— `file()` 按 Gradle daemon 的 cwd 解析，实际落在别处 →
+   报「lacks the PTC patch」（其实锚点全在，只是读到了另一个文件）。必须给**绝对路径**。
+2. **直连 GitHub 下载被重置**（`curl (35) Recv failure`，149 MB 单流 30 KB/s 要 85 分钟）。可用镜像只测出
+   `gh-proxy.com` 与 `gh-proxy.org` 活着；最后用**12 线程 Range 分块**下载，18 秒拿完，
+   sha256 `078b8c33…537e` 与官方 `runtime-meta-arm64-v8a.json` 逐字节一致。
+3. **增量打包会留 133 MB 空洞**：先打过 noruntime 包、再切 full 复用同一 `outputs/apk/release/` 时，
+   APK 变成 322,426,920 B，zip 里 `assets/tools/hid.mjs` 前有 133,220,641 B 空洞（数据区没重排）。
+   `rm -f app/build/outputs/apk/release/*.apk` 后重打 → **189,084,815 B**，与 `sum(compress_size)=188,814,738` 只差中央目录。
+   **以后在 noruntime / full 之间切换必须删旧 APK。**
+
+产物与核验：
+
+| 项 | 值 |
+| 路径 | `/e/tmp/rel390/dsh-mobile-v1.6.0-beta.14-arm64-v8a-FULL-runtime.apk` |
+| 体积 | **189,084,815 B**（180 MB） |
+| md5 | `85fb6caa8e7fc78575b8f10fb50528a1` |
+| 包内 `assets/runtime.zip` | 149,680,344 B，version `2026.11.14-d0bd1fde`，sha256 `078b8c33…` |
+| 内嵌引擎 | **0.2.2-rc.3** |
+| native-code | 只有 `arm64-v8a` |
+| 签名 | `d28ca4f5b7467ea19564983f492af25fd21b26b2577fbfa32c46ed59042892c8` |
+
+真机实测（OnePlus PLZ110 / Android 16 / arm64-v8a，`192.168.101.21:9000`）：
+
+- 原装 `387 / 1.6.0-beta.11`，`signatures=[5496b679]` 与本机 release 证书同源 → `install -r -d` 直接覆盖成功，
+  装成 `versionCode=390 / versionName=1.6.0-beta.14`，`lastUpdateTime=2026-11-14 21:38:32`。
+- 启动链路日志：`boot step spawn: 987ms` → `health-poll: 1982ms`（总 3855ms），无 crash。
+- 运行时自动解压：`files/engine` **836 MB**、`lib/node_modules/@deepseek-ai` 下 **338** 个包、
+  `BUILD.json` = `{"version":"2026.11.14-d0bd1fde","engineVersion":"0.2.2-rc.3"}`。
+- 引擎 HTTP 服务活着：`adb forward tcp:13080 tcp:3080` + `curl` → **401**（要 token 才放行，属正常鉴权），
+  `dsh_alpine` 进程两个（node 主进程 + web），`--patch /eng/android-overlay.yml`。
+- **注意**：模拟器是 x86_64，装不了 arm64 完整包（`NO_MATCHING_ABIS`），所以完整包**只在真机验证过**。
