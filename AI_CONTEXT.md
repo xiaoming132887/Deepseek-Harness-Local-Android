@@ -8,7 +8,9 @@
 > [`git-workflow.md`](docs/git-workflow.md) 推送通道 ·
 > [`RELEASE.md`](docs/RELEASE.md) 发版流程
 
-**最后更新**：2026-11-14 · `main` HEAD `fc0c62fe` · 本轮新增「灵动岛展开两次修复 + 面板边缘投影」（见一百二十五节）。
+**最后更新**：2026-11-14 · 本地 HEAD `5cf78a4b`（**未推**）· 本轮新增「容器里 C 编译跑不起来的两层根因」（见一百二十七节）。
+> ⚠️ 远端 `main` 仍停在 `456747ef`：GitHub 凭据（`ghp_` 40 位）已被吊销，API 返回 401，
+> 本地 1 个提交待推。需要维护者重新授权后才能推。
 本轮：**灵动岛两处观感修复** —— ① 用户报「收起态展开会连续展开两次」，录屏逐帧量测证明确有
 两轮「窄→宽」，根因是 `toggleToolbar()` 先 `renderIslandVisibility()` 再在 120ms 后压小重撑，
 两段动画叠加；把起点 scale/alpha 挪到渲染前、删掉 handle 空转动画即修。② 用户要求侧边面板
@@ -13240,3 +13242,89 @@ lockfile 内两包出现次数 0，临时目录 `files/fp`、`files/lc` 已删�
 ### 4. 过程记录
 - 截图里出现绿色描边框，一度以为是布局问题；实为模拟器开着 TalkBack（`settings get secure enabled_accessibility_services` 有 TalkBackService），焦点框被 screencap 拍进去。关掉 TalkBack（`accessibility_enabled 0` + `enabled_accessibility_services null`）后画面干净，绿色像素从 14,236 降到 0。**以后拍视觉证据前先确认无障碍服务状态。**
 - 为对比「改动前」，临时把工作区那份布局换回 `HEAD` 版本、单独编了一份 APK 装机量测（耗时约 1 分钟），量完立刻用备份 `_tmp_shots/my_layout.xml` 还原，`git diff` 确认只剩我这处改动。
+
+---
+
+## 一百二十七 · 2026-11-14 容器里 C 编译跑不起来的两层根因（提交 `5cf78a4b`）
+
+用户报「扩展中心装了 build-base，gcc 却说 not found」。逐层量测后是**两层独立问题**，都在
+`LinuxPackageManager` / 任务目录这条链路上，不是 gcc 本身。
+
+### 1. 文件层：包在，但文件不可用（已修，`5cf78a4b`）
+
+真机（PLZ110 / Alpine 3.22 / uid 10499）：
+
+    -rw-r--r--  1 10499 10499  1905896  /usr/bin/gcc    ← 缺 x 位
+    -rw-r--r--  1 10499 10499   529800  /usr/bin/as     ← 同上
+    -rw-r--r--  1 10499 10499  2431592  /usr/bin/ld     ← 同上
+    drwxr-xr-x  3 root  root      3452  /usr/include    ← 属主是 root
+
+`apk info -e gcc` 认、`/lib/apk/db/installed` 也有，所以既有的「包在不在」判据全绿 ——
+这正是 `LinuxPackageManager.kt:196-235` 那段注释没覆盖的第三类：**包在、文件也在，
+但权限位不对**。
+
+新增 `engine/RootfsModes.kt`：
+
+| 症状 | 判据 | 谁能修 |
+|---|---|---|
+| 可执行文件缺 x 位 | 内容是 ELF（`\x7fELF`）或 `#!` shebang，且无 x 位 | **App 自己**（属主已是自己，`chmod` 只需属主） |
+| 头文件装不进去 | 目录 `canWrite()` 为假 | 只有 `Privilege.normalizeOwnership` |
+
+判据刻意窄：只看**内容**不看扩展名（权限位正是被弄坏的那个，不可信）；不跟随符号链接
+（软链的权限位没有意义）；只扫传统 bin 目录，不碰 `/usr/lib` 的 .so 与 `/usr/share` 数据。
+第二类只在装编译链相关包时尝试（`RootfsModes.wantsHeaders`），因为起 `su`/Shizuku 有代价。
+
+头文件那条必须 `apk del musl-dev` **再** `apk add musl-dev`：第一次 add 已记进数据库，
+不 del 直接 add 是幂等跳过，`stdio.h` 永远不会落地（真机实测）。
+
+### 2. 执行层：任务目录里的二进制 execve 被拒（本轮定位，修在 remote-hub 侧）
+
+同一份源码、同一条 gcc、同一个任务内：
+
+    gcc -O0 -o t t.c                    → rc=0，产物 -rwx------
+    ./t                                 → /bin/sh: ./t: not found   (rc=127)
+    /lib/ld-musl-aarch64.so.1 ./t       → OK-2                     (rc=0)
+
+**加载器自己能跑它，只有内核 execve 那一步被拒** —— 典型 noexec 特征。曾怀疑「相对路径、
+绝对路径、`$PWD`、PATH」，四种全部 127；对照实验才定位到判据是**落在哪个目录**：
+
+| 目标 | 结果 |
+|---|---|
+| `/tmp/t` | 正常 |
+| `/usr/local/bin/c-bin` | 正常 |
+| `/root/w/c` | 正常 |
+| `<job 目录>/t`（`files/jobs/<jobId>/`） | not found |
+
+即 `files/jobs/*` 这个 App 私有 data 目录对容器 loader 转发过来的 execve 不可执行。
+修法不在 App 侧：`@soodok/dsh-remote-hub` 的 `phone_build` 把产物编进 `/tmp/dsh-build/`
+跑完再拷回 cwd 供 `/dev/jobs/artifact` 取走（详见该仓提交 `e361ee2`）。
+
+**这条对后续很重要**：任何「在任务目录里编东西再直接执行」的用法都会假失败，而
+失败信息（`not found`）指向的是路径/编译器，不是权限模型。以后往 `/dev/jobs` 里加
+「跑本地产物」的能力，产物一律落 `/tmp`。
+
+### 3. 验证
+
+- 新增 `RootfsModesTest` 13 条（`app/src/test/java/app/dsh/mobile/engine/`）；隔离树
+  `:app:testDebugUnitTest` → **42 tests / 0 fail**（含原有 29 条），`:app:compileDebugKotlin`
+  BUILD SUCCESSFUL，在提交 `96825f0f` 独立检出后跑，不依赖工作区。
+- 真机端到端（remote-hub 侧 `scripts/phone-e2e.mjs`）→ `PHONE_E2E OK (15/15)`，
+  `phone_build` 编出并运行出 `BUILD-2`；修复前是 13/15。
+- `check-i18n.py` → All i18n checks passed。
+
+### 4. 一个必须记住的测试教训
+
+`RootfsModesTest` 第一版 13 条里 **4 条假红/假绿**，全部因为直接断言 `File.canExecute()`：
+**Windows 上它恒为 true**（NTFS 没有 POSIX x 位，JDK 一律报可执行），
+`setExecutable(false)` 也不改变它。改成把「有没有 x 位」作为参数注入（默认值仍是
+`canExecute()`），被测的才是扫描逻辑本身；真实权限位的变化交给真机 `phone_build` 覆盖。
+
+**以后凡是要断言行权限/属主的单测，都不能直接读宿主 API 下结论。**
+
+### 5. 未验证 / 未做
+
+- 「头文件属主漂移」这条自愈路径**只在手工 `chown` + `apk del/add` 下验证过**，
+  `healPackageFiles` 里自动跑的那一段（`Privilege.normalizeOwnership` → del → add）
+  未在真机上从「root 占有的 `/usr/include`」初态完整跑一遍 —— 因为设备上那棵树
+  已经被我手工修好了。要复验得先人为把它改回 root 属主。
+- 本轮**未改版本号**（仍是 `versionCode 388`），按协作约定版本号由维护者在主仓统一管。
