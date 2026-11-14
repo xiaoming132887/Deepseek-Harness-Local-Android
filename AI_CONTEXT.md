@@ -13328,3 +13328,118 @@ lockfile 内两包出现次数 0，临时目录 `files/fp`、`files/lc` 已删�
   未在真机上从「root 占有的 `/usr/include`」初态完整跑一遍 —— 因为设备上那棵树
   已经被我手工修好了。要复验得先人为把它改回 root 属主。
 - 本轮**未改版本号**（仍是 `versionCode 388`），按协作约定版本号由维护者在主仓统一管。
+## 一百二十八 · 2026-11-14 Linux 工作台「点开始画面出不来」：三处真因 + 四条链路重写
+
+### 用户反馈
+
+「Linux 工作台，GUI 版本下了，但是里面的帧服务和画面渲染始终不行。原本打算的模拟器里面好像也实现不了」。
+电脑端（理想环境）全流程跑通过，真机（PLZ110 / Android 16 / KernelSU，包 1.6.0-beta.11 / 387）点「开始画面」无任何反应。
+
+### 三处真因（全部真机实验定性，非推测）
+
+**A. `pkill -f` 自杀 —— 这是「点了没反应」的直接原因**
+
+旧代码是单条 `sh -c "pkill -f [f]ramesrv 2>/dev/null; nohup /framesrv … & echo STARTED"`。
+`pkill -f` 匹配**整条 cmdline**，而这条 sh 自己的 cmdline 里既有 `[f]ramesrv` 这串模式文本、
+又有 `/framesrv` 裸路径 —— 正则命中的是后者，于是 sh 把自己 SIGTERM 掉。
+
+真机实测：`sh -c "pkill -f [x]11frsrv 2>/dev/null; echo AFTER1; nohup /x11frsrv … & echo AFTER2"`
+→ 只输出 `Terminated`，**rc=143**，AFTER1 / AFTER2 都不打印，帧服务从未启动，共享文件不存在。
+去掉裸路径那一半则 `SURVIVED_X11_PKILLS` rc=0。
+
+**旧注释里「`[x]yz` 形式防自杀」的推理是错的** —— 它只能防住「模式文本自身被匹配」，
+防不住正则去匹配同一行里的真实路径。这正是本条 bug 藏了这么久的原因。
+
+**B. `Xvfb -nolock` + 残留 socket**
+
+旧代码写死 `Xvfb :99 -screen 0 1280x720x24 -nolock`。
+
+- `-nolock` 只有 root 能用，非 root 只打一行 `Warning: the -nolock option can only be used by root`，
+  且**完全不解决** socket 冲突。
+- 真正的错误是 `_XSERVTransSocketUNIXCreateListener: … SocketCreateListener() failed` /
+  `_XSERVTransMakeAllCOTSServerListeners: server already running` /
+  `(EE) Fatal server error: (EE) Cannot establish any listening sockets`。
+  根因是 rootfs 里残留 `/tmp/.X11-unix/X99`，属主 root，app uid 在 sticky 目录里删不掉。
+- root 手工清掉后，app uid 起 Xvfb → **alive=yes**，socket `srwxrwxrwx 10499 X99`。
+
+用户体感「以前能跑、重启后再也起不来」就是这个残留造成的。
+
+**C. framesrv 的 bionic 路线走不通（所以 X11 路线才是主路径）**
+
+- `framesrv-arm64` 的 PT_INTERP 是 `/system/bin/linker64`（bionic），直接交给 musl loader 会报
+  `Error relocating /framesrv: __libc_init: symbol not found` / `__register_atfork` / `__errno`。
+- 正确路径是 `dsh_alpine.c` 的 bionic 直通分支（`guest_is_bionic()` 读 PT_INTERP 含 linker →
+  `cleaner_exec()` 交给无 filter 的 cleaner 兄弟进程）。实测一律
+  `BIONIC: cleaner_exec FAIL` 后 `nohup: can't execute '/framesrv': No such file or directory` rc=127。
+- 根因：`find_cleaner_by_prefix()` 只按前缀扫 `/proc/net/unix`，扫到的是**别的 uid 的 cleaner**
+  （`@dsh-cleaner-0_1015`，引擎 node 的 root cleaner）；cleaner 端 accept 后做 SO_PEERCRED 校验
+  （要求 `pc.uid == myuid`），跨 uid 请求被静默 close 不回执 → 请求方读回执 EOF。
+- 而 `x11frsrv-arm64` / `inputd-arm64` 是 musl（`/lib/ld-musl-aarch64.so.1`，needed libX11/libXext/libXtst），
+  在容器里能直接跑。**所以 X11 路线是对的，bionic 那条不要指望。**
+
+### 改动（`app/src/main/java/app/dsh/mobile/LinuxActivity.kt`，+219 −65）
+
+**1. 新增两个属性** —— `frameStateDir` = `/data/data/<pkg>/files`、`frameDisplayFile` = `$frameStateDir/dsh-display`。
+display 号与各进程 pid 必须被**另外两次**独立的 `runner.shell()`（开触摸 / 停画面）读到，
+只能落在已 bind 进容器的 App 私有目录；容器内 `/tmp` 有时是 tmpfs，跨调用不保证存活。
+
+**2. 停旧进程全部改成「pidfile 优先 + 行首锚定兜底」** —— `pkill -f '^/x11frsrv'` / `'^/framesrv'` /
+`'^/inputd '` / `'^/wlsrc/wlshot'` / `'^Xvfb '`。sh 的 cmdline 以运行器路径开头，行首锚点不可能误伤自己。
+
+**3. display 号每轮现挑 99..119** —— 判据是 socket 与 lock **都不存在**
+（`[ ! -e /tmp/.X11-unix/X$d ] && [ ! -e /tmp/.X$d-lock ]`），从根上绕开残留，不依赖删除权限；
+挑中的号写进 `$frameDisplayFile`，`setInputEnabled()` 另起 shell 时按它设 `DISPLAY`。
+
+**4. 去掉 `-nolock`；`mkdir -p` + `chmod 1777 /tmp/.X11-unix`。**
+
+**5. 等真实帧落地才报成功** —— 启动前用 `od -A n -t u4 -j 4 -N 4` 读共享文件头的 seq 作基线，
+轮询 120×0.1s 要求 `NOW != BASE && SZ >= 3000000` 才打 `DSHFRAME_OK display=:$DISP seq=… size=…`；
+超时打 `DSHFRAME_FAIL no-frame` 并把 xvfb / 帧服务 / xterm 三个日志的前 6 行原样带回。
+**以前是 fire-and-forget，一发就报「已启动」，哪怕一帧都没出** —— 用户看到的就是「点了没反应」。
+
+**6. 缺包有独立文案** —— `command -v Xvfb` 与 `[ -x /x11frsrv ]` 前置检查，
+失败打 `DSHFRAME_FAIL missing-xvfb` / `missing-x11frsrv`，映射到新增的
+`R.string.linux_screen_missing_gui`（六个 locale 各一条）。
+
+**7. `setInputEnabled()` 判据改成 `out.contains("INPUTD_OK")`** —— 不再看 `res.ok`：
+老逻辑下 `exit 0` + 一句话就报成功，用户看不出是「顺序错了」还是「X 没起来」。
+现在分别打 `INPUTD_FAIL no-display` / `no-x-socket display=:$D` / `exited`（带日志头）。
+
+### 验证（全部实跑，附证据）
+
+| 项 | 命令 / 方式 | 结果 |
+|---|---|---|
+| 新探针 | `python scripts/probes/_test_linux_frame_launch.py` | **18 checks / 0 failed** |
+| 变异反验 | 一次注入三处变异（pkill 退回 `[x]yz` / 插 `DISP=99` / 成功判据改 `true`） | 探针**变红**，恢复后 18/0 复绿 |
+| i18n 门禁 | `python scripts/check-i18n.py` | `All i18n checks passed`（58 extensions），EXIT=0 |
+| Kotlin 编译 | `gradle -Ppackage=noruntime :app:compileDebugKotlin` | BUILD SUCCESSFUL |
+| 打包 | `gradle -Ppackage=noruntime :app:assembleDebug` | BUILD SUCCESSFUL，APK 43.8 MB |
+| 容器内实测 | 走真实 `dsh_alpine` 入口（app uid 10499）跑新脚本 | 挑到 `DISP=100`（99 被占）→ **`DSHFRAME_OK display=:100 seq=3 size=3686416`** |
+| inputd 实测 | 同上，读 display 文件 | **`INPUTD_OK display=:100`**，日志 `INPUTD_KV xtest=2.2 display=:100` |
+| 停止实测 | 同上 | `before: 4 pidfiles` → 四个进程全 killed → `STOPPED` |
+
+**探针自己的三个坑（已固化在脚本里）**：
+1. 直接搜原文会被**注释**喂饱（仓库注释里就写着 `[x]11frsrv` / `:99` / `-nolock`）→ 先 `strip_comments()`。
+2. Kotlin 源码里是 `${'$'}d` 转义壳子，**不是** sh 真正收到的 `$d` → 必须再 `unwrap_shell_escape()`
+   （第一版漏了这层，G2/G3/H2 三条假红）。
+3. Python docstring 里出现三引号会提前闭合 → 改写措辞避开。
+
+### 未完成 / 阻塞（不谎报）
+
+- **「点按钮 → 出画面」这条 UI 端到端仍未验收。** 容器侧脚本、共享文件、帧服务、inputd、停止清理
+  都已实测通过，但点按钮那一步被两个**设备侧**问题阻断：
+  - 点「开始画面」后 App 回到桌面，抖音（`com.ss.android.ugc.aweme`）反复自行抢到前台，
+    `mCurrentFocus` 被夺；`logcat -b crash` 里没有 app.dsh.mobile 的 FATAL，`pidof` 仍有 pid。
+  - ColorOS `OplusHansManager` 会 freeze `uid 10499`（`scene: |StrictMode-1|LcdOn`）。
+  - 收尾时设备直接掉线（`192.168.101.21:9000` ping 100% 丢包、5555/9000 全 timeout），
+    `adb mdns services` 仍能发现服务，无法继续点击验证。
+- 文案债未清：`linux_screen_start_sub` / `linux_screen_started` 等六个 locale 仍写 `/framesrv`，
+  实际主路径已是 X11（`x11frsrv`）。属既有文案，本轮未动。
+- `scripts/check-ui-tokens.py` 的 D1（`card token keeps a 1dp stroke`）是**既有红**：
+  `bg_card.xml` 在 HEAD 就是 `?attr/dshStroke + 1dp`，而判据查的是 `@color/stroke`，与本轮无关。
+
+### 并行会话避让
+
+`engine/LinuxPackageManager.kt`（已 staged）、`engine/RootfsModes.kt` + `RootfsModesTest.kt`（已 staged）、
+`res/layout/activity_onboarding.xml` 属并行会话在途，本轮未纳入提交。
+

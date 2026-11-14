@@ -1532,6 +1532,7 @@
     <string name="linux_screen_stop_sub">停掉帧服务，保留最后一帧</string>
     <string name="linux_screen_started">帧服务已启动：/framesrv 1280x720</string>
     <string name="linux_screen_start_failed">帧服务启动失败：%1$s</string>
+    <string name="linux_screen_missing_gui">容器镜像不是 GUI 形态，或者 GUI 软件包没装上。把镜像卡切到「Alpine · GUI」，等它把 Xvfb + xterm 装完再试。</string>
     <string name="linux_screen_stopped">帧服务已停止</string>
     <string name="linux_screen_stop_failed">停止失败：%1$s</string>
     <!-- 手机形态返回：会话页首次按返回只提示，2 秒内再按才退出 -->

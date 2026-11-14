@@ -1539,6 +1539,7 @@
     <string name="linux_screen_stop_sub">Framedienst stoppen, letztes Bild bleibt</string>
     <string name="linux_screen_started">Framedienst gestartet: /framesrv 1280x720</string>
     <string name="linux_screen_start_failed">Framedienst startet nicht: %1$s</string>
+    <string name="linux_screen_missing_gui">Das Container-Image ist kein GUI-Build, oder die GUI-Pakete fehlen. Stelle die Distributionskarte auf „Alpine · GUI“ und lass die Installation (Xvfb + xterm) abschließen, dann erneut versuchen.</string>
     <string name="linux_screen_stopped">Framedienst gestoppt</string>
     <string name="linux_screen_stop_failed">Stoppen fehlgeschlagen: %1$s</string>
     <!-- 手机形态返回：会话页首次按返回只提示，2 秒内再按才退出 -->

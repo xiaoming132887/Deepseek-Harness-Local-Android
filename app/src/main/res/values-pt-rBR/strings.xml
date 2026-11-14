@@ -1493,6 +1493,7 @@
     <string name="linux_screen_stop_sub">Parar o serviço de quadros, manter o último</string>
     <string name="linux_screen_started">Serviço de quadros iniciado: /framesrv 1280x720</string>
     <string name="linux_screen_start_failed">Falha ao iniciar o serviço de quadros: %1$s</string>
+    <string name="linux_screen_missing_gui">A imagem do contêiner não é uma compilação com GUI, ou os pacotes de GUI estão faltando. Mude o cartão da distribuição para “Alpine · GUI”, aguarde a instalação (Xvfb + xterm) e tente novamente.</string>
     <string name="linux_screen_stopped">Serviço de quadros parado</string>
     <string name="linux_screen_stop_failed">Falha ao parar: %1$s</string>
     <!-- 手机形态返回：会话页首次按返回只提示，2 秒内再按才退出 -->

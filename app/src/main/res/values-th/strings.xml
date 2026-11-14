@@ -1483,6 +1483,7 @@
     <string name="linux_screen_stop_sub">หยุดบริการเฟรม เก็บเฟรมสุดท้ายไว้</string>
     <string name="linux_screen_started">เริ่มบริการเฟรมแล้ว: /framesrv 1280x720</string>
     <string name="linux_screen_start_failed">เริ่มบริการเฟรมไม่สำเร็จ: %1$s</string>
+    <string name="linux_screen_missing_gui">รูปภาพคอนเทนเนอร์ไม่ใช่บิลด GUI หรือขาดแพ็กเกจ GUI เปลี่ยนการ์ดดิสทริบิวชันเป็น “Alpine · GUI” แล้วรอให้การติดตั้ง (Xvfb + xterm) เสร็จก่อน แล้วลองอีกครั้ง</string>
     <string name="linux_screen_stopped">หยุดบริการเฟรมแล้ว</string>
     <string name="linux_screen_stop_failed">หยุดไม่สำเร็จ: %1$s</string>
     <!-- 手机形态返回：会话页首次按返回只提示，2 秒内再按才退出 -->

@@ -1533,6 +1533,7 @@
     <string name="linux_screen_stop_sub">Stop the frame server, keep the last frame</string>
     <string name="linux_screen_started">Frame server started: /framesrv 1280x720</string>
     <string name="linux_screen_start_failed">Frame server failed to start: %1$s</string>
+    <string name="linux_screen_missing_gui">Container image is not a GUI build, or the GUI packages are missing. Switch the distro card to “Alpine · GUI” and let it finish installing (Xvfb + xterm), then try again.</string>
     <string name="linux_screen_stopped">Frame server stopped</string>
     <string name="linux_screen_stop_failed">Failed to stop: %1$s</string>
     <!-- 手机形态返回：会话页首次按返回只提示，2 秒内再按才退出 -->

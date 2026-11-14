@@ -260,14 +260,18 @@ android {
         // TurnWatcher 每 1.5 秒给每次会话写入都整份解压 zstd（29.5 MB 会话 → 233 MB
         // 明文 / 1.8 秒 / 子进程峰值 799 MB），现改为三道闸 + 按帧序号增量，
         // 常态开销降到几百字节；目录遍历也按 5 轮节流。
-        // versionCode 继续单调递增：375 → … → 382 → 383 → 384 → 385 → 386。
-        versionCode = 387
+        // v1.6.0-beta.12（2026-11-14）：Linux 工作台画面起不来 —— 三处真因
+        // （pkill -f 自杀 / Xvfb 写死 :99 撞残留 socket / -nolock 非 root 无效）
+        // 重写四条启动链路：行首锚定停进程 + pidfile、99..119 现挑 display 号、
+        // 等真实帧落地才报成功、display 号落 bind 目录供 inputd 复用。
+        // versionCode 继续单调递增：375 → … → 386 → 387 → 388。
+        versionCode = 388
         // v1.5.0 起进入 1.5 系列：设备能力（蓝牙报文/WiFi 底层/定时提醒）+ AI 开关 UI。
         // versionName 允许带后缀（Android 不校验格式）。v1.5.0 起 CI 支持两种 tag 形态
         // （见 android-build.yml:68-86）：v1.5.0（正式版，prerelease: false）与
         // v1.5.0-beta.2（试发行，prerelease: true），但 tag 必须与 versionName 完全拼得上
         // （publish-release 的 `test "$GITHUB_REF_NAME" = "v$V"`），所以打 tag 前先确认这里。
-        versionName = "1.6.0-beta.11"
+        versionName = "1.6.0-beta.12"
 
         ndk {
             abiFilters += listOf(targetAbi)
